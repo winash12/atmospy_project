@@ -4,8 +4,6 @@ import numpy as np
 from netCDF4 import Dataset,num2date
 from PV import potential_vorticity
 from cdo import Cdo
-from metpy.calc import isentropic_interpolation
-from metpy.units import units
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from cartopy.util import add_cyclic_point
@@ -210,10 +208,4 @@ def main():
             plt.show()
                 
             
-def performIsentropicInterpolation(isentlevs,plevs,tmp,u,v):
-
-    plevs = plevs *units.pascal
-    isent_anal = isentropic_interpolation(isentlevs,plevs,tmp,u,v,tmpk_out=True)
-    return isent_anal
-
 main()
