@@ -477,26 +477,6 @@ class potential_vorticity:
         #sys.exit()
         return pv
     
-    def pvonthetalayer(self,lats,lons,prestop,presbottom,thetatop,thetabottom,uthetatop,uthetabottom,vthetatop,vthetabottom,missingData):
-        
-
-        rearth = 6371221.3
-        uthetav =  np.empty_like(uthetatop,dtype=object)
-        vthetav =  np.empty_like(vthetatop,dtype=object)
-        gravity = 9.80665
-        uthetav = 0.5 *(uthetatop + uthetabottom)
-        vthetav = 0.5 *(vthetatop + vthetabottom)
-        dx = np.empty((73,143))
-        dy = np.empty((72,144))
-        dx[:,:] = rearth * np.radians(2.5)*units.meter
-        dy[:,:] = rearth * np.radians(2.5)*units.meter
-        f = coriolis_parameter(np.deg2rad(lats)).to(units('1/sec'))
-        absv = vorticity(uthetav,vthetav,dx,dy,dim_order='yx')+f
-        # Top - Bottom According to GEMPAK
-        sys.exit()
-        dthta = thetatop - thetabottom
-        
-        return ipv
 
     def ipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
