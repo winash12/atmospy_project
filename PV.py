@@ -819,9 +819,6 @@ class potential_vorticity:
         ret.append(thta)
         return ret
 
-    def performNewtonRaphsonIteration(self,tup,tdwn,thta,alogpu,alogpd,kappa,alogp0,epsln):
-        return pln
-            
     def s2thta(self,lats,lons,pres,kthta,ssfc,psfc,spres,thta,pthta):
 
         plvls = len(pres)
