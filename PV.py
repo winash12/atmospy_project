@@ -60,7 +60,7 @@ class potential_vorticity:
                     dsdx[j,0] = 0.0
                 elif (s[j, i+1] > -999.99 and s[j,i-1] > -999.99):
                     # Centered finite differences
-                    # dq/dx = q(east) - q(west)dlon
+                    # dq/dx = q(east) - q(west)/dlon
                     dsdx[j, i] = (s[j,i+1] - s[j,i-1])/(2.*di)
                 elif (s[j,i+1] < -999.99 and s[j,i-1] > -999.99 and s[j,i] > -999.99):
                     dsdx[j,i] = (s[j,i] - s[j,i-1])/di
