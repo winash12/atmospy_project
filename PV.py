@@ -479,7 +479,8 @@ class potential_vorticity:
         #sys.exit()
         return pv
     
-
+    # Calculates isentropic PV by using pressures obtained by
+    # interpolating ln P vs. ln T
     def ipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
         latLen = len(lats)
@@ -547,6 +548,8 @@ class potential_vorticity:
                             ipv[k,j,i] = missingData
         return ipv
 
+    # Calculates isentropic PV by using pressures obtained by
+    # interpolating P vs. ln T
     def ipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
         latLen = len(lats)
