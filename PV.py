@@ -51,8 +51,9 @@ class potential_vorticity:
 
         di = abs(np.cos(np.radians(0.0))*rearth*(np.radians(lon[1]-lon[0])))
 
-        # GRIB order - S-N(OUTER)
-        #              W-E(INNER)
+        # GRIB order for for loop -
+        #  Outer loop            S-N(OUTER)
+        #  Inner loop            W-E(INNER)
         for j in range(0,latLen):                
             for i in range(1, lonLen-1):
                 if (abs(lat[j]) >= 90.0):
