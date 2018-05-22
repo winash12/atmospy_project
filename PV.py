@@ -155,6 +155,9 @@ class potential_vorticity:
         rearth = 6371221.3
         relv = np.empty((latLen,lonLen))
         missing = 0
+        # Relative vorticity at the poles is calculated differently than elsewhere
+        # It is done using Stokes' circulation theorem
+        # https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/qj.49712354416
         # Begin South Pole
         for i in range(0,lonLen):
             if (u[1,i] > -999.99):
