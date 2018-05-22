@@ -819,6 +819,8 @@ class potential_vorticity:
         ret.append(thta)
         return ret
 
+    # Interpolates a scalar grid interpolation from isobaric vertical
+    # coordinates to isentropic vertical coordinates
     def s2thta(self,lats,lons,pres,kthta,ssfc,psfc,spres,thta,pthta):
 
         plvls = len(pres)
