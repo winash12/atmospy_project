@@ -51,7 +51,7 @@ class potential_vorticity:
 
         di = abs(np.cos(np.radians(0.0))*rearth*(np.radians(lon[1]-lon[0])))
 
-        # GRIB order for for loop -
+        # GRIB order for loop -
         #  Outer loop            S-N(OUTER)
         #  Inner loop            W-E(INNER)
         for j in range(0,latLen):                
@@ -59,6 +59,8 @@ class potential_vorticity:
                 if (abs(lat[j]) >= 90.0):
                     dsdx[j,0] = 0.0
                 elif (s[j, i+1] > -999.99 and s[j,i-1] > -999.99):
+                    # Centered finite differences
+                    # dq/dx = q(east) - q(west)dlon
                     dsdx[j, i] = (s[j,i+1] - s[j,i-1])/(2.*di)
                 elif (s[j,i+1] < -999.99 and s[j,i-1] > -999.99 and s[j,i] > -999.99):
                     dsdx[j,i] = (s[j,i] - s[j,i-1])/di
@@ -158,6 +160,7 @@ class potential_vorticity:
         # Relative vorticity at the poles is calculated differently than elsewhere
         # It is done using Stokes' circulation theorem
         # https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/qj.49712354416
+        # Tan theta is infinite at 90 degrees
         # Begin South Pole
         for i in range(0,lonLen):
             if (u[1,i] > -999.99):
