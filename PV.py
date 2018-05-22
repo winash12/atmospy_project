@@ -68,7 +68,8 @@ class potential_vorticity:
                     dsdx[j,i]  = (s[j,i+1] - s[j,i])/di
                 else:
                     dsdx[j,i] = -999.99
-        # Code for numerical differences along poles
+        # Code for checking the possibility of a global grid and
+        # compute difference at the beginning and end of row j
         for j in range(0,latLen):
             if (abs(lat[j]) >= 90.0):
                 dsdx[j,0] = 0.0
