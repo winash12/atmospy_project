@@ -610,7 +610,10 @@ class potential_vorticity:
         return ipv
 
 
-    
+    # Performs interpolation from isobaric to isentropic
+    # Uses Newton Raphson iteration
+    # Code has both interpolations - P vs ln. T and ln P vs. ln T
+    # User needs to be given options to pick one
     def p2thta(self,lats,lons,plevs,tsfc,psfc,tpres):
 
         maxlvl = 17
