@@ -42,13 +42,6 @@ class potential_vorticity:
             lat = lat[::-1]
         return (lat,lon)
 
-    # This class only calculates finite differences
-    # for the cylindrical equidistant projection
-    # https://en.wikipedia.org/wiki/Cylindrical_equal-area_projection
-    # Here in this case delta lat = delta lon
-    # In the following cases this is not possible
-    # We need to add finite differences  code for following grids - Sphere(GFS), Gaussian grid(ECWMF), WRF
-    # as well as Icosahedral(ICON)
     def ddx(self,s,lat,lon,missingData):
 
         lonLen = len(lon)
@@ -58,16 +51,13 @@ class potential_vorticity:
 
         di = abs(np.cos(np.radians(0.0))*rearth*(np.radians(lon[1]-lon[0])))
 
-        # GRIB order for loop -
-        #  Outer loop            S-N(OUTER)
-        #  Inner loop            W-E(INNER)
+        # GRIB order - S-N(OUTER)
+        #              W-E(INNER)
         for j in range(0,latLen):                
             for i in range(1, lonLen-1):
                 if (abs(lat[j]) >= 90.0):
                     dsdx[j,0] = 0.0
                 elif (s[j, i+1] > -999.99 and s[j,i-1] > -999.99):
-                    # Centered finite differences
-                    # dq/dx = q(east) - q(west)/dlon
                     dsdx[j, i] = (s[j,i+1] - s[j,i-1])/(2.*di)
                 elif (s[j,i+1] < -999.99 and s[j,i-1] > -999.99 and s[j,i] > -999.99):
                     dsdx[j,i] = (s[j,i] - s[j,i-1])/di
@@ -75,8 +65,6 @@ class potential_vorticity:
                     dsdx[j,i]  = (s[j,i+1] - s[j,i])/di
                 else:
                     dsdx[j,i] = -999.99
-        # Code for checking the possibility of a global grid and
-        # compute difference at the beginning and end of row j
         for j in range(0,latLen):
             if (abs(lat[j]) >= 90.0):
                 dsdx[j,0] = 0.0
@@ -165,10 +153,6 @@ class potential_vorticity:
         rearth = 6371221.3
         relv = np.empty((latLen,lonLen))
         missing = 0
-        # Relative vorticity at the poles is calculated differently than elsewhere
-        # It is done using Stokes' circulation theorem
-        # https://rmets.onlinelibrary.wiley.com/doi/pdf/10.1002/qj.49712354416
-        # Tan theta is infinite at 90 degrees
         # Begin South Pole
         for i in range(0,lonLen):
             if (u[1,i] > -999.99):
@@ -239,7 +223,6 @@ class potential_vorticity:
             for i in range(0,lonLen):
                 if (relv[j,i] > -999.99):
                     absv[j,i] = relv[j,i]+corl
-                    print(absv[j,i])
                 else:
                     absv[j,i] = -999.99
         return absv
@@ -267,7 +250,7 @@ class potential_vorticity:
         dvdx = self.ddx(v,lat,lon,missingData)
         dudy = self.ddy(u,lat,lon,missingData)
         #print(dudy)
-        relv = self.relvor(ni,nj,lat,lon,u,v,dvdx,dudy)
+        relv = self.relvor(lat,lon,u,v,dvdx,dudy)
 
         absv = self.absvor(lat,lon,relv)
 
@@ -353,13 +336,14 @@ class potential_vorticity:
         dpotdx = self.ddx(potav,lat,lon,missingData)
         dpotdy = self.ddy(potav,lat,lon,missingData)
         pv = np.empty((nj,ni))
-        stabl = np.emtpy((nj,ni))
+        stabl = np.empty((nj,ni))
         vorcor = np.empty((nj,ni))
+
         for j in range(0,nj):
             for i in range(0,ni):
                 stabl[j,i] = potav[j,i]/pav * (np.log(tmp1[j,i]/tmp2[j,i])/(lnp1-lnp2)-kappa)
-                vorcor[j,i] = ((v1[j,i] - v2[j,i])*dpotdx[j,i]-(u1[j,i] - u2[j,i])*dpotdy[j,i])/(self.pot(tmp1,pres1)-self.pot(tmp2,pres2))
-                pv[j,i] = -gravity * (absv[j,i]+vorcor) * stabl * 1e6
+                vorcor[j,i] = ((v1[j,i] - v2[j,i])*dpotdx[j,i]-(u1[j,i] - u2[j,i])*dpotdy[j,i])/(self.pot(tmp1[j,i],pres1)-self.pot(tmp2[j,i],pres2))
+                pv[j,i] = -gravity * (absv[j,i]+vorcor[j,i]) * stabl[j,i] * 1e6
 
         for j in range(0,nj):
             if (abs(lat[j] - 90.) < 0.001):
@@ -494,8 +478,6 @@ class potential_vorticity:
         #sys.exit()
         return pv
     
-    # Calculates isentropic PV by using pressures obtained by
-    # interpolating ln P vs. ln T
     def ipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
         latLen = len(lats)
@@ -563,8 +545,6 @@ class potential_vorticity:
                             ipv[k,j,i] = missingData
         return ipv
 
-    # Calculates isentropic PV by using pressures obtained by
-    # interpolating P vs. ln T
     def ipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
         latLen = len(lats)
@@ -628,11 +608,7 @@ class potential_vorticity:
         return ipv
 
 
-    # Performs interpolation from isobaric to isentropic
-    # Uses Newton Raphson iteration
-    # Code has both interpolations - P vs ln. T and ln P vs. ln T
-    # User needs to be given options to pick one
-    # Needs to leverage Scipy's Newton Raphson iteration if better performing than mine
+    
     def p2thta(self,lats,lons,plevs,tsfc,psfc,tpres):
 
         maxlvl = 17
@@ -738,6 +714,8 @@ class potential_vorticity:
         else:
             print('TOP ISENTROPIC LEVEL', thta[kthta])
 
+        print(thta)
+
         alogp[:] = np.log(plevs[:])
         maxit = 0
         resmax = 1.
@@ -804,33 +782,33 @@ class potential_vorticity:
                         tup = potup *(pup/100000.)** kappa
                         a = (tup - tdwn)/(alogpu - alogpd)
                         b = tup - a *alogpu
-                        #dltdlp = (np.log(tup/tdwn))/(alogpu-alogpd)
-                        #interc = np.log(tup) - dltdlp*alogpu
-                        #pln =  (np.log(thta[kout]) - interc - kappa*alogp[0])/(dltdlp-kappa)
-                        pln = alogpd + 0.5 * (alogpu - alogpd)
+                        dltdlp = (np.log(tup/tdwn))/(alogpu-alogpd)
+                        interc = np.log(tup) - dltdlp*alogpu
+                        pln =  (np.log(thta[kout]) - interc - kappa*alogp[0])/(dltdlp-kappa)
+                        #pln = alogpd + 0.5 * (alogpu - alogpd)
                         resid = 1
-                        k = 0
-                        pok = (p0)**kappa
+                        #k = 0
+                        #pok = (p0)**kappa
                         kmax = 10
                         while (resid  > epsln and k < kmax) :
-                            ekp = np.exp(-kappa * pln)
-                            t = a * pln + b
-                            f = thta[kout] - pok * t * ekp
-                            fp = pok * ekp * (kappa * t  -a)
-                            pin = pln - f/fp
-                            res = abs(pln -pin)
+                            #ekp = np.exp(-kappa * pln)
+                            #t = a * pln + b
+                            #f = thta[kout] - pok * t * ekp
+                            #fp = pok * ekp * (kappa * t  -a)
+                            #pin = pln - f/fp
+                            #res = abs(pln -pin)
+                            #pln = pin
+                            #k = k+1
+                            t1 = dltdlp * pln+interc
+                            thta1 = t1 + kappa *(np.log(p0 / pln))
+                            f= np.log(thta[kout]) - thta1
+                            dfdp =  dltdlp/np.exp(pln) + kappa/np.exp(-pln)
+                            pin = pln - f/dfdp
+                            resid = abs(pln - pin)
                             pln = pin
-                            k = k+1
-                        #    t1 = dltdlp * pln+interc
-                        #    thta1 = t1 + kappa *(np.log(p0 / pln))
-                        #    f= np.log(thta[kout]) - thta1
-                        #    dfdp =  dltdlp/np.exp(pln) + kappa/np.exp(-pln)
-                        #    pin = pln - f/dfdp
-                        #    resid = abs(pln - pin)
-                        #    pln = pin
-                        #    k += 1
+                            k += 1
                         pthta[kout,j,i] = np.exp(pln)
-                        #print(pthta[kout,j,i],k)
+                        #print(pthta[kout,j,i])
                 if (pthta[kout-1,j,i] > 0.):
                     if (pthta[kout,j,i] > pthta[kout-1,j,i]):
                         pthta[kout,j,i] = pthta[kout-1,j,i] + 0.01
@@ -841,8 +819,9 @@ class potential_vorticity:
         ret.append(thta)
         return ret
 
-    # Interpolates a scalar grid interpolation from isobaric vertical
-    # coordinates to isentropic vertical coordinates
+    def performNewtonRaphsonIteration(self,tup,tdwn,thta,alogpu,alogpd,kappa,alogp0,epsln):
+        return pln
+            
     def s2thta(self,lats,lons,pres,kthta,ssfc,psfc,spres,thta,pthta):
 
         plvls = len(pres)
