@@ -42,6 +42,13 @@ class potential_vorticity:
             lat = lat[::-1]
         return (lat,lon)
 
+    # This class only calculates finite differences
+    # for the cylindrical equidistant projection
+    # https://en.wikipedia.org/wiki/Cylindrical_equal-area_projection
+    # Here in this case delta lat = delta lon
+    # In the following cases this is not possible
+    # We need to add finite differences  code for following grids - Sphere(GFS), Gaussian grid(ECWMF), WRF
+    # as well as Icosahedral(ICON)
     def ddx(self,s,lat,lon,missingData):
 
         lonLen = len(lon)
@@ -232,6 +239,7 @@ class potential_vorticity:
             for i in range(0,lonLen):
                 if (relv[j,i] > -999.99):
                     absv[j,i] = relv[j,i]+corl
+                    print(absv[j,i])
                 else:
                     absv[j,i] = -999.99
         return absv
@@ -624,6 +632,7 @@ class potential_vorticity:
     # Uses Newton Raphson iteration
     # Code has both interpolations - P vs ln. T and ln P vs. ln T
     # User needs to be given options to pick one
+    # Needs to leverage Scipy's Newton Raphson iteration if better performing than mine
     def p2thta(self,lats,lons,plevs,tsfc,psfc,tpres):
 
         maxlvl = 17

@@ -47,13 +47,13 @@ def main():
                     print("Missing Data Not Found")
         temp = nc_tempFile.variables['air'][:]
         temp = np.reshape(temp,(nj,ni,1))
-        temp_theta = nc_tempFile.variables['air'][0,:]*units(nc_tempFile.variables['air'].units)
+        #temp_theta = nc_tempFile.variables['air'][0,:]*units(nc_tempFile.variables['air'].units)
         # Reanalysis data is oriented N-S. So reverse the array
         temp = temp[::-1,:,:]
         args.append(temp)
-        args1.append(temp_theta)
+        #args1.append(temp_theta)
     tmp = np.concatenate(args,axis=2)
-    tmp_theta = np.concatenate(args1,axis=0)
+    #tmp_theta = np.concatenate(args1,axis=0)
 
     #print(missingData)
     #Start Uwind
@@ -68,12 +68,12 @@ def main():
         nc_uwndFile = Dataset(file,'r')
         uwnd = nc_uwndFile.variables['uwnd'][:]
         uwnd = np.reshape(uwnd,(nj,ni,1))
-        uwnd_theta = nc_uwndFile.variables['uwnd'][0,:]*units(nc_uwndFile.variables['uwnd'].units)
+        #uwnd_theta = nc_uwndFile.variables['uwnd'][0,:]*units(nc_uwndFile.variables['uwnd'].units)
         uwnd = uwnd[::-1,:,:]
         args.append(uwnd)
-        args1.append(uwnd_theta)
+        #args1.append(uwnd_theta)
     u = np.concatenate(args,axis=2)
-    u_theta = np.concatenate(args1,axis=0)
+    #u_theta = np.concatenate(args1,axis=0)
     #Done
 
 
@@ -93,32 +93,32 @@ def main():
         vwnd = nc_vwndFile.variables['vwnd'][:]
         vwnd = np.reshape(vwnd,(nj,ni,1))
         vwnd = vwnd[::-1,:,:]
-        vwnd_theta = nc_vwndFile.variables['vwnd'][0,:]*units(nc_vwndFile.variables['vwnd'].units)
+        #vwnd_theta = nc_vwndFile.variables['vwnd'][0,:]*units(nc_vwndFile.variables['vwnd'].units)
         args.append(vwnd)
-        args1.append(vwnd_theta)
+        #args1.append(vwnd_theta)
     v = np.concatenate(args,axis=2)
-    v_theta = np.concatenate(args1,axis=0)
+    #v_theta = np.concatenate(args1,axis=0)
     #Done
 
-    tmp_file = "surface_temp_22_1_2018.nc"
+    tmp_file = "surface_temp_20_5_2018.nc"
     nc_surfTFile = Dataset(tmp_file,'r')
     tsfc = nc_surfTFile.variables['air'][:]
     tsfc = np.reshape(tsfc,(nj,ni))
     tsfc = tsfc[::-1,:]
     
-    pres_file = "pres_sfc_2018_22_1_00Z.nc"
+    pres_file = "pres_sfc_2018_20_5_00Z.nc"
     nc_presFile = Dataset(pres_file,'r')
     psfc = nc_presFile.variables['pres'][:]
     psfc = np.reshape(psfc,(nj,ni))
     psfc = psfc[::-1,:]
 
-    uwnd_10m_file = "surface_uwnd_22_1_2018.nc"
+    uwnd_10m_file = "surface_uwnd_20_5_2018.nc"
     nc_uwndFile = Dataset(uwnd_10m_file,'r')
     uwnd = nc_uwndFile.variables['uwnd'][:]
     uwnd = np.reshape(uwnd,(nj,ni))
     uwnd = uwnd[::-1,:]
     
-    vwnd_10m_file = "surface_vwnd_22_1_2018.nc"
+    vwnd_10m_file = "surface_vwnd_20_5_2018.nc"
     nc_vwndFile = Dataset(vwnd_10m_file,'r')
     vwnd = nc_vwndFile.variables['vwnd'][:]
     vwnd = np.reshape(vwnd,(nj,ni))
@@ -130,15 +130,16 @@ def main():
     kthta,pthta,thta = ret
     uthta = pv.s2thta(lats,lons,plevs,kthta,uwnd,psfc,u,thta,pthta)
     vthta = pv.s2thta(lats,lons,plevs,kthta,vwnd,psfc,v,thta,pthta)
-    ipv = pv.ipv2(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
+    ipv = pv.ipv(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
 
     for i in range (0,len(lons)):
         if (lons[i] < 0.0):
             lons[i] += 360.0
     ipvPlot = np.empty((nj,ni))
-    ipvPlot = ipv[8,:,:]*1e6
+    ipvPlot = ipv[2,:,:]*1e6
     print(max(ipvPlot.flatten()))
     print(min(ipvPlot.flatten()))
+    sys.exit()
     ax1 = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
     clevs = np.arange(-18,18,1)
     shear_fill = ax1.contourf(lons,lats,ipvPlot,clevs,
