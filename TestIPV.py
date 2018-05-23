@@ -159,54 +159,5 @@ def main():
     plt.savefig('pv.png')
     plt.show()
     sys.exit()
-
-    #pvor = np.empty((nj,ni))
-
-    #tmp_theta = tmp_theta * units.kelvin
-    #isentlevs = [265,275,285,300,315,320,330,350,350,370,395,430,475,530,600,700] * units.kelvin
-    #isent_anal = performIsentropicInterpolation(isentlevs,plevs,tmp_theta,u_theta,v_theta)
-    #isentprs,isenttmp,isentu,isentv=isent_anal
-    #isentprs = np.reshape(isentprs,(nj,ni,16))
-    #isenttmp = np.reshape(isenttmp,(nj,ni,16))
-    #isentu = np.reshape(isentu,(nj,ni,16))
-    #isentv = np.reshape(isentv,(nj,ni,16))
-
-    for i in range (0,len(lons)):
-        if (lons[i] < 0.0):
-            lons[i] += 360.0
-    for k in range(0,16):
-            #pvor = pv.pvonp(ni,nj,lats,lons,pres[k],pres[k+1],pres[k],tmp[:,:,k],tmp[:,:,k+1],tmp[:,:,k],u[:,:,k],u[:,:,k+1],u[:,:,k],v[:,:,k],v[:,:,k+1],v[:,:,k],missingData)
-        #elif (k == 16):
-        #    pvor = pv.pvonp(ni,nj,lats,lons,pres[k],pres[k-1],pres[k],tmp[:,:,k],tmp[:,:,k-1],tmp[:,:,k],u[:,:,k],u[:,:,k-1],u[:,:,k],v[:,:,k],v[:,:,k-1],v[:,:,k],missingData)
-         #   print("NO")
-        #else:
-        if (k ==9):
-            #pvor = pv.pvonp(ni,nj,lats,lons,pres[k],pres[k+1],pres[k-1],tmp[:,:,k],tmp[:,:,k+1],tmp[:,:,k-1],u[:,:,k],u[:,:,k+1],u[:,:,k-1],v[:,:,k],v[:,:,k+1],v[:,:,k-1],missingData)
-            pvor = pv.pvlayr(ni,nj,lats,lons,pres[k],pres[k+1],pres[k-1],tmp[:,:,k+1],tmp[:,:,k-1],u[:,:,k+1],u[:,:,k-1],v[:,:,k+1],v[:,:,k-1])
-            #pvor = pv.pv_rossby(ni,nj,lats,lons,pres[k],pres[k+1],pres[k-1],tmp[:,:,k],tmp[:,:,k+1],tmp[:,:,k-1],u[:,:,k],u[:,:,k+1],u[:,:,k-1],v[:,:,k],v[:,:,k+1],v[:,:,k-1],missingData)
-            #pvor = pv.pv_isobaric_bluestein(ni,nj,lats,lons,pres[k],pres[k+1],pres[k-1],tmp[:,:,k],tmp[:,:,k+1],tmp[:,:,k-1],u[:,:,k],u[:,:,k+1],u[:,:,k-1],v[:,:,k],v[:,:,k+1],v[:,:,k-1],missingData)
-            #pvor = pv.pvonthetalayer(lats,lons,isentprs[:,:,k+1],isentprs[:,:,k-1],isentlevs[k+1],isentlevs[k-1],u[:,:,k+1],u[:,:,k-1],v[:,:,k+1],v[:,:,k-1],missingData)
-            #print(max(pvor.flatten()))
-            #print(min(pvor.flatten()))
-            #print
-            ax1 = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
-            clevs = np.arange(-10,10,1)
-            shear_fill = ax1.contourf(lons,lats,pvor,clevs,
-                                      transform=ccrs.PlateCarree(), cmap=plt.cm.RdBu_r,
-                                      linewidth=(10,),extend='both')
-            ax1.coastlines()
-            ax1.gridlines()
-            ax1.set_xticks([0, 60, 120, 180, 240, 300, 359.99], crs=ccrs.PlateCarree())
-            ax1.set_yticks([-90, -60, -30, 0, 30, 60, 90], crs=ccrs.PlateCarree())
-            lon_formatter = LongitudeFormatter(zero_direction_label=True,
-                                               number_format='.0f')
-            lat_formatter = LatitudeFormatter()
-            ax1.xaxis.set_major_formatter(lon_formatter)
-            ax1.yaxis.set_major_formatter(lat_formatter)
-            cbar = plt.colorbar(shear_fill, orientation='horizontal')
-            plt.title('Isobaric Potential Vorticity On The 200 hPa surface', fontsize=16)
-            plt.savefig('pv.png')
-            plt.show()
-                
             
 main()
