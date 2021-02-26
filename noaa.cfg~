@@ -1,0 +1,19 @@
+[Key Values]
+year1=2021
+month1=2
+day1=22
+time1=00
+year2=2021
+month2=2
+day2=22
+time2=18
+minLat=90.0
+maxLat=-90.0
+minLon=0
+maxLon=-2.5
+urlReanalysis2=https://www.esrl.noaa.gov/psd/thredds/dodsC/Datasets/ncep.reanalysis2/pressure/
+urlReanalysis=https://www.esrl.noaa.gov/psd/thredds/dodsC/Datasets/ncep.reanalysis/pressure/
+atmosVariables=air,uwnd,vwnd
+pressureLevels = 1000,925,850,700,600,500,400,300,250,200,150,100,70,50,30,20,10
+surfaceVariables=pres.sfc
+surfaceFluxVariables=air.2m,uwnd.10m,vwnd.10m
