@@ -2,7 +2,6 @@
 import sys,math
 import warnings
 import numpy as np
-<<<<<<< HEAD
 import warnings
 import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
@@ -14,8 +13,6 @@ import scipy.ndimage as ndimage
 from windspharm.standard import VectorWind
 from windspharm.tools import prep_data, recover_data, order_latdim
 from decimal import *
-=======
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
 
 class potential_vorticity:
 
@@ -123,34 +120,22 @@ class potential_vorticity:
 
         return dsdx
 
-<<<<<<< HEAD
     def ddy(self,s,lat,lon):
-=======
-    def ddy(self,s,lat,lon,missingData):
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         lonLen = len(lon)
         latLen = len(lat)
         dsdy = np.empty((latLen,lonLen))
         rearth = 6371221.3
         dj = abs(np.radians((lat[0]-lat[1])) * rearth)
-<<<<<<< HEAD
         # North Pole
         
         for i in range(0,lonLen):
             s0 = s[0,i]
             s1 = s[1,i]
             if (s0 -999.99 and s1 > -999.99):
-=======
-
-        # North Pole 
-        for i in range(0,lonLen):
-            if (s[0,i] > -999.99 and s[1,i] > -999.99):
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
                 # Make sure derivative is  dq/dy = [q(north) - q(south)]/dlat
                 dsdy[0,i] = (s[0,i] - s[1,i])/dj
             else:
                 dsdy[0,i] = -999.99
-<<<<<<< HEAD
         dsdyA = s[0,:] > -999.99
         dsdyB = s[1,:] > -999.99
         dsdy1 = np.where(dsdyA & dsdyB,(s[0,:]-s[1,:])/dj,-999.99)
@@ -160,22 +145,15 @@ class potential_vorticity:
         dsdyC = s[-1,:] > -999.99
         dsdyD = s[-2,:] > -999.99
         dsdy1 = np.where(dsdyC & dsdyD,(s[-2,:]-s[-1,:])/dj,dsdy1)
-=======
-        # South Pole
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         for i in range(0,lonLen):
             if (s[-1,i] > -999.99 and s[-2,i] > -999.99):
                 # Make sure derivative is  dq/dy = [q(north) - q(south)]/dlat
                 dsdy[-1,i] = (s[-2,i] - s[-1,i])/dj
             else:
                 dsdy[-1,i] = -999.99
-<<<<<<< HEAD
         #has_left = s[:-2,:] > -999.99
         #has_right = s[:-2,:] > -999.99
         #dsdy1 = np.where(has_left & has_right,(s[:-2,:] - s[:2,:])/(2.*dj),dsdy1)
-=======
-                        
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         #Interior grid point
         for j in range(1,latLen-1):
             for i in range(0,lonLen):
@@ -522,7 +500,6 @@ class potential_vorticity:
         print(k,m)
         #sys.exit()
         return pv
-<<<<<<< HEAD
 
     def svor(self,lats,lons,u,v):
         latLen = len(lats)
@@ -665,8 +642,6 @@ class potential_vorticity:
             ipv[k,:,:] = ndimage.gaussian_filter(ipv[k,:,:]*1e6,sigma=2,order=0)
         return ipv
 
-=======
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
     
     def ipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
@@ -681,10 +656,7 @@ class potential_vorticity:
             dudy = self.ddy(uthta[k,:,:],lats,lons,missingData)
             relv = self.relvor(lats,lons,uthta[k,:,:],vthta[k,:,:],dvdx,dudy)
             absv = self.absvor(lats,lons,relv)
-<<<<<<< HEAD
             #print(absv.shape)
-=======
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
             for j in range(0,latLen):
                 for i in range(0,lonLen):
                     if (k == 0):
@@ -737,10 +709,7 @@ class potential_vorticity:
                             ipv[k,j,i] = -gravity * absv[j,i] * stabl
                         else:
                             ipv[k,j,i] = missingData
-<<<<<<< HEAD
             ipv[k,:,:] = ndimage.gaussian_filter(ipv[k,:,:]*1e6,sigma=2,order=0)                            
-=======
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         return ipv
 
     def ipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
@@ -817,11 +786,7 @@ class potential_vorticity:
         R = 8314.41
         Rd = R/md
         kappa = 2./7.
-<<<<<<< HEAD
         dthta = 10.
-=======
-        dthta = 15.
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         epsln = 0.001
         kmax = 10
         p0 = 100000.
@@ -834,11 +799,7 @@ class potential_vorticity:
         potsfc = np.zeros((latLen,lonLen))
         alogp = np.zeros((plvls))
         thta = np.zeros(maxlvl)
-<<<<<<< HEAD
 
-=======
-        tpres = np.transpose(tpres,(2,0,1))
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
 
         # Calculate potential temperature at the surface. Keep track of lowest value.
 
@@ -850,10 +811,7 @@ class potential_vorticity:
                 if (potsfc[j,i] < thtalo):
                     thtalo = potsfc[j,i]
         # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
-<<<<<<< HEAD
 
-=======
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         thtahi = self.pot(tpres[9,0,0],plevs[9])
 
         for k in range(0,len(plevs)):
@@ -935,20 +893,10 @@ class potential_vorticity:
                 for i in range(0,lonLen):
                     # Begin IF
                     if (thta[kout] < potsfc[j,i]):
-<<<<<<< HEAD
                         pthta[kout,j,i] = psfc[j,i]
                     elif (thta[kout] > thtap[-1,j,i]):
                         pthta[kout,j,i] = 1.
                     elif (abs(thta[kout]-potsfc[j,i]) < 0.001):
-=======
-                        #print (j,i,kout,thta[kout],potsfc[j,i])
-                        pthta[kout,j,i] = -999.99
-                    elif (thta[kout] > thtap[-1,j,i]):
-                        #print(j,i,kout)
-                        pthta[kout,j,i] = -999.99
-                    elif (abs(thta[kout]-potsfc[j,i]) < 0.001):
-                        #print(j,i,kout)
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
                         pthta[kout,j,i] = psfc[j,i]
                     else:
                         looping = True
@@ -999,7 +947,6 @@ class potential_vorticity:
                         tup = potup *(pup/100000.)** kappa
                         a = (tup - tdwn)/(alogpu - alogpd)
                         b = tup - a *alogpu
-<<<<<<< HEAD
                         if (alogpu-alogpd == 0.):
                             diffpupd = 0.0001
                             try:
@@ -1012,9 +959,6 @@ class potential_vorticity:
                                 dltdlp = (np.log(tup/tdwn))/(alogpu-alogpd)
                             except Warning:
                                 print("divide by zero")
-=======
-                        dltdlp = (np.log(tup/tdwn))/(alogpu-alogpd)
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
                         interc = np.log(tup) - dltdlp*alogpu
                         pln =  (np.log(thta[kout]) - interc - kappa*alogp[0])/(dltdlp-kappa)
                         #pln = alogpd + 0.5 * (alogpu - alogpd)
@@ -1051,12 +995,6 @@ class potential_vorticity:
         ret.append(thta)
         return ret
 
-<<<<<<< HEAD
-=======
-    def performNewtonRaphsonIteration(self,tup,tdwn,thta,alogpu,alogpd,kappa,alogp0,epsln):
-        return pln
-            
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
     def s2thta(self,lats,lons,pres,kthta,ssfc,psfc,spres,thta,pthta):
 
         plvls = len(pres)
@@ -1065,7 +1003,6 @@ class potential_vorticity:
         sthta = np.zeros((kthta,latLen,lonLen))
         lnpu1p = np.zeros((plvls))
         lnpu2p = np.zeros((plvls-1))
-<<<<<<< HEAD
         #spres = np.transpose(spres,(2,0,1))
 
         np.seterr(all='warn')
@@ -1076,26 +1013,12 @@ class potential_vorticity:
             lnpu2p[kin] = Decimal(np.log(pres[kin]/pres[kin-2]))
             
         lnpu1p[-1] = float(np.log(pres[-1]/pres[-2]))
-=======
-        spres = np.transpose(spres,(2,0,1))
-
-        
-        for kin in range(0,plvls-1):
-            lnpu1p[kin] = np.log(pres[kin]/pres[kin-1])
-            lnpu2p[kin] = np.log(pres[kin]/pres[kin-2])
-            
-        lnpu1p[-1] = np.log(pres[-1]/pres[-2])
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
 
         for kout in range(0,kthta):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
                     if(pthta[kout,j,i] <= 0.):
-<<<<<<< HEAD
                         sthta[kout,j,i] = ssfc[j,i]
-=======
-                        sthta[kout,j,i] = -999.99
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
                     elif (np.allclose(abs(pthta[kout,j,i]-psfc[j,i]),0.001)):
                         sthta[kout,j,i] = ssfc[j,i]
                     else:
@@ -1114,13 +1037,8 @@ class potential_vorticity:
                                         smid = spres[kin,j,i]
                                         sup = spres[kin+1,j,i]
                                         lnp1p2 = lnpu1p[kin]
-<<<<<<< HEAD
                                         lnp1p3 = float(np.log(pup/pdwn))
                                         lnp2p3 = float(np.log(pmid/pdwn))
-=======
-                                        lnp1p3 = np.log(pup/pdwn)
-                                        lnp2p3 = np.log(pmid/pdwn)
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
                                         #print(pmid,pup)
                                     else:
                                         pmid = pres[kin+1]
@@ -1150,16 +1068,11 @@ class potential_vorticity:
                                         smid = spres[kin,j,i]
                                         sup = spres[kin+1,j,i]
                                         lnp1p2 = lnpu1p[kin]
-<<<<<<< HEAD
                                         #lnp1p3 = np.log(pup/pdwn)
                                         if (pup == pdwn):
                                             pup += 10
                                         lnp1p3 = np.log(pup) -np.log(pdwn)
                                         lnp2p3 = float(np.log(pmid/pdwn))
-=======
-                                        lnp1p3 = np.log(pup/pdwn)
-                                        lnp2p3 = np.log(pmid/pdwn)
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
                                     else:
                                         pmid = pres[kin+1]
                                         pup = pres[kin+2]
@@ -1180,7 +1093,6 @@ class potential_vorticity:
                                     lnp2p3 = lnpu1p[kin-1]
                                 looping = False
                             kin +=1
-<<<<<<< HEAD
                         try:
                             qdwn = float(np.log(pthta[kout,j,i]/pmid)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p3)
                             qmid = float(-np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p2)
@@ -1190,10 +1102,4 @@ class potential_vorticity:
                             print(qmid,qup,sthta[kout,j,i])
                             print(sys.exc_info())
                             sys.exit()
-=======
-                        qdwn = np.log(pthta[kout,j,i]/pmid)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p3
-                        qmid = -np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p2
-                        qup = np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pmid)/lnp1p3/lnp1p2
-                        sthta[kout,j,i] = qdwn*sdwn + qmid*smid + qup *sup
->>>>>>> 222ec3dff608d0c2745b2124ef02e934d6d89d1a
         return sthta
