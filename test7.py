@@ -64,7 +64,7 @@ def sipv(lats,lons,thta):
     dlt = np.log(tup/tdwn)
     dlp = np.log(pthta[1:-1,:,:]/pthta[0:-2,:,:])
     dltdlp = dlt/dlp
-    stabl = (thta[k]/pthta[1:-1,:,:]) *(dltdlp-kappa)
+    stabl = (thta[1:-1]/pthta[1:-1,:,:]) *(dltdlp-kappa)
     ipv[1:-1,:,:] = -gravity * absv[1:-1,:,:] * stabl
     ipv[1:-1,:,:] = ndimage.gaussian_filter(ipv[1:-1,:,:]*1e6,sigma=2,order=0)
     return ipv
