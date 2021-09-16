@@ -1,13 +1,10 @@
-#!/usr/bin/python3.5
+#!/usr/bin/python3.8
 import sys,math
 import warnings
 import numpy as np
+from numpy import newaxis
 import warnings
-import cartopy.crs as ccrs
-from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-import matplotlib as mpl
-
-import matplotlib.pyplot as plt
+import time
 from netCDF4 import Dataset
 import scipy.ndimage as ndimage
 from windspharm.standard import VectorWind
@@ -64,6 +61,12 @@ class potential_vorticity:
 
         # GRIB order - S-N(OUTER)
         #              W-E(INNER)
+        has_value = s[1:-1, :] > -999.99
+        has_left = s[:-2, :] > -999.99
+        has_right = s[2:, :] > -999.99
+        dsdx = np.where(has_right & has_value, (s[2:, :] - s[1:-1, :]) / di, dsdx)
+        dsdx = np.where(has_left & has_value, (s[1:-1, :] - s[:-2, :]) / di, dsdx)
+        dsdx = np.where(has_left & has_right, (s[2:, :] - s[:-2, :]) / (2. * di), dsdx)
         for j in range(0,latLen):                
             for i in range(1, lonLen-1):
                 if (abs(lat[j]) >= 90.0):
@@ -76,6 +79,7 @@ class potential_vorticity:
                     dsdx[j,i]  = (s[j,i+1] - s[j,i])/di
                 else:
                     dsdx[j,i] = -999.99
+
         for j in range(0,latLen):
             if (abs(lat[j]) >= 90.0):
                 dsdx[j,0] = 0.0
@@ -106,7 +110,7 @@ class potential_vorticity:
                     dsdx[j,0] = (s[j,1] - s[j,0]) / di
                 else:
                     dsdx[j,0] = -999.99
-                dsdx[j,-1] = dsdx[j,0]
+                    dsdx[j,-1] = dsdx[j,0]
             else:
                 if (s[j, 1] > -999.99 and s[j,0] > -999.99) :
                     dsdx[j,0] = (s[j,1] - s[j,0]) /di
@@ -124,6 +128,7 @@ class potential_vorticity:
         lonLen = len(lon)
         latLen = len(lat)
         dsdy = np.empty((latLen,lonLen))
+
         rearth = 6371221.3
         dj = abs(np.radians((lat[0]-lat[1])) * rearth)
         # North Pole
@@ -136,15 +141,6 @@ class potential_vorticity:
                 dsdy[0,i] = (s[0,i] - s[1,i])/dj
             else:
                 dsdy[0,i] = -999.99
-        dsdyA = s[0,:] > -999.99
-        dsdyB = s[1,:] > -999.99
-        dsdy1 = np.where(dsdyA & dsdyB,(s[0,:]-s[1,:])/dj,-999.99)
-
-        # South Pole
-
-        dsdyC = s[-1,:] > -999.99
-        dsdyD = s[-2,:] > -999.99
-        dsdy1 = np.where(dsdyC & dsdyD,(s[-2,:]-s[-1,:])/dj,dsdy1)
         for i in range(0,lonLen):
             if (s[-1,i] > -999.99 and s[-2,i] > -999.99):
                 # Make sure derivative is  dq/dy = [q(north) - q(south)]/dlat
@@ -153,7 +149,7 @@ class potential_vorticity:
                 dsdy[-1,i] = -999.99
         #has_left = s[:-2,:] > -999.99
         #has_right = s[:-2,:] > -999.99
-        #dsdy1 = np.where(has_left & has_right,(s[:-2,:] - s[:2,:])/(2.*dj),dsdy1)
+        #dsdy1 = np.where(has_left & has_right,(s[:-2,:] - s[2:,:])/(2.*dj),dsdy1)
         #Interior grid point
         for j in range(1,latLen-1):
             for i in range(0,lonLen):
@@ -170,6 +166,33 @@ class potential_vorticity:
 
         return dsdy
 
+    def ddyRefactor(self,s,lat,lon):
+
+        lonLen = len(lon)
+        latLen = len(lat)
+        dsdy = np.empty((latLen,lonLen))
+        rearth = 6371221.3
+        dj = abs(np.radians((lat[0]-lat[1])) * rearth)
+        # North Pole
+
+        dsdyA = s[0,:] > -999.99
+        dsdyB = s[1,:] > -999.99
+        dsdy = np.where(dsdyA & dsdyB,(s[0,:]-s[1,:])/dj,-999.99)
+
+        # South Pole
+
+        dsdyC = s[-1,:] > -999.99
+        dsdyD = s[-2,:] > -999.99
+        dsdy = np.where(dsdyC & dsdyD,(s[-2,:]-s[-1,:])/dj,dsdy1)
+
+        has_value = s[1:-1, :] > -999.99
+        has_left = s[:-2,:] > -999.99
+        has_right = s[2:,:] > -999.99
+        dsdy = np.where(has_left & has_right,(s[:-2,:] - s[2:,:])/(2.*dj),dsdy1)
+        dsdy = np.where(has_left & has_value,(s[1:-1, :] - s[:-2, :]) / di, dsdx)
+        #dsdy = np.where(has_right & has_value,((s[2:, :] - s[1:-1, :]) / di, -1000)
+        return dsdy
+        
     def relvor(self,lat,lon,u,v,dvdx,dudy):
         lonLen = len(lon)
         latLen = len(lat)
@@ -549,7 +572,96 @@ class potential_vorticity:
             plt.show()
             exit()
 
+    def sipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
+    
+        latLen = len(lats)
+        lonLen = len(lons)
+        ipv = np.empty((kthta,latLen,lonLen))
+        p0 = 100000.
+        kappa = 2./7.
+        gravity = 9.80665
+        rearth = 6371221.3
+        ntrunc = int(lonLen/2)
+        np.seterr(all='warn')
+        warnings.filterwarnings('error')
+        print(thta.shape,kthta)
+        t1 = time.time()
+        absVor = np.empty((kthta,latLen,lonLen))        
+        args = []
+        for uthta2d,vthta2d in zip(uthta,vthta):
+            w = VectorWind(uthta2d,vthta2d)
+            absVorLevel=w.absolutevorticity()
+            b = absVorLevel[newaxis,:,:]
+            args.append(b)
+        absVor = np.concatenate(args,axis=0)
 
+
+        isPthtaEqual = pthta[1:-1,:,:] == pthta[0:-2,:,:]
+        pthta[1:-1,:,:] = np.where(isPthtaEqual,pthta[1:-1,:,:]+10,pthta[1:-1,:,:])
+
+        # Boundary Layer
+        hasNoPthta = pthta[0,:,:] <= 0.
+        hasNoPthta0 = pthta[1,:,:] <= 0.
+        hasNoAbsVor = absVor[0,:,:] < -999.99
+
+        ipv[0,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[0,:,:])
+        
+        tdwn = thta[0,None,None] * (pthta[0,:,:]/p0)**kappa
+        tup =  thta[1,None,None] * (pthta[0,:,:]/p0)**kappa
+        dlt = np.log(tup) - np.log(tdwn)
+        dlp = np.log(pthta[1,:,:])-np.log(pthta[0,:,:])
+        dltdlp = dlt/dlp
+        stabl = (thta[0,None,None]/pthta[0,:,:]) *(dltdlp-kappa)
+        ipv[0,:,:] = -gravity * absVor[0,:,:] * stabl
+        ipv[0,:,:] = ndimage.gaussian_filter(ipv[0,:,:]*1e6,sigma=2,order=0)
+
+
+        # Topmost Layer
+        hasNoPthta = pthta[-1,:,:] <= 0.
+        hasNoPthta0 = pthta[-2,:,:] <= 0.
+        hasNoAbsVor = absVor[-1,:,:] < -999.99
+
+        ipv[-1,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[-1,:,:])
+
+        tdwn = thta[-3,None,None]*(pthta[-2,:,:]/p0)**kappa
+        tup =  thta[-2,None,None]*(pthta[-1,:,:]/p0)**kappa
+
+        dlt = np.log(tup/tdwn)
+        dlp = np.log(pthta[-1,:,:]/pthta[-2,:,:])
+        dltdlp = dlt/dlp
+        stabl = (thta[-1,None,None]/pthta[-1,:,:]) *(dltdlp-kappa)
+        ipv[-1,:,:] = -gravity * absVor[-1,:,:] * stabl
+        ipv[-1,:,:] = ndimage.gaussian_filter(ipv[-1,:,:]*1e6,sigma=2,order=0)
+
+
+        # For internal levels
+        ipv[1:-1,:,:] = -999.99
+        hasPthta = pthta[1:-1,:,:] > 0
+        hasPthta0 = pthta[0:-2,:,:] > 0
+        hasAbsVor = absVor[1:-1,:,:] > 0
+
+
+        tdwn = np.where(hasPthta & hasPthta0 & hasAbsVor,thta[0:-3,None,None] * (pthta[0:-2,:,:]/p0**kappa),tdwn)
+
+        tup =  np.where(hasPthta & hasPthta0 & hasAbsVor,thta[2:-1,None,None] * pthta[1:-1,:,:]/p0**kappa,tup)
+
+
+        try:
+            
+            dlt = np.log(tup/tdwn)
+            dlp = np.log(pthta[2:,:,:]/pthta[0:-2,:,:])
+            dltdlp = dlt/dlp
+        except Warning:
+            print(sys.exc_info())
+        sys.exit()
+        stabl = (thta[1:-2,None,None]/pthta[1:-1,:,:]) *(dltdlp-kappa)
+        ipv[1:-1,:,:] = -gravity * absVor[1:-1,:,:] * stabl
+        ipv[1:-1,:,:] = ndimage.gaussian_filter(ipv[1:-1,:,:]*1e6,sigma=2,order=0)
+
+        sys.exit()
+        return ipv
+
+        return ipv
         
     def sipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
@@ -563,7 +675,11 @@ class potential_vorticity:
         ntrunc = int(lonLen/2)
         np.seterr(all='warn')
         warnings.filterwarnings('error')
-
+        
+        t1 = time.time()
+        #for uthta2d,vth2a2d in zip(uthta,vthta):
+        #    print(uthta2d.shape)
+        #    sys.exit()
         #x = Spharm(lonLen,latLen,ntrunc,rearth,gridtype='regular')
         for k in range(0,kthta):
             uthta2d = uthta[k,:,:]
@@ -793,7 +909,7 @@ class potential_vorticity:
         latLen = len(lats)
         lonLen = len(lons)
         
-        pthta = np.zeros((plvls,latLen,lonLen))
+
 
         thtap = np.zeros((plvls,latLen,lonLen))
         potsfc = np.zeros((latLen,lonLen))
@@ -887,7 +1003,8 @@ class potential_vorticity:
         alogp[:] = np.log(plevs[:])
         maxit = 0
         resmax = 1.
-
+        pthta = np.zeros((kthta,latLen,lonLen))
+        
         for kout in range(0,kthta):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
@@ -989,6 +1106,7 @@ class potential_vorticity:
                     if (pthta[kout,j,i] > pthta[kout-1,j,i]):
                         pthta[kout,j,i] = pthta[kout-1,j,i] + 0.01
 
+        print(pthta.shape)
         ret = []
         ret.append(kthta)
         ret.append(pthta)
