@@ -1,5 +1,5 @@
 #!/usr/bin/python3.8
-import sys,math
+import sys,math,random
 import warnings
 import numpy as np
 from numpy import newaxis
@@ -499,12 +499,151 @@ class potential_vorticity:
         return pv
 
 
-    """
-    def sipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
-    
+    def testsipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
+
         latLen = len(lats)
         lonLen = len(lons)
-        ipv_ref = np.empty((kthta,latLen,lonLen))
+        t1 = time.time()
+        dltRef,dlpRef,dltdlpRef,stablRef,ipvRef = self.sipv(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
+
+
+        smoothedIPV = np.empty((kthta,latLen,lonLen))
+        t2 = time.time()
+        print(t2-t1)
+        t3 = time.time()
+        dlt,dlp,dltdlp,stabl,ipv = self.sipv2(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
+        print(dlt.dtype,dlp.dtype,dltdlp.dtype)
+        print(smoothedIPV.shape)
+        t4 = time.time()
+        print(t4-t3)
+        return smoothedIPV
+    
+
+    def sipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
+
+        latLen = len(lats)
+        lonLen = len(lons)
+        ipv = np.zeros((kthta,latLen,lonLen))
+        dltdlp = np.empty((kthta,latLen,lonLen))
+        stabl = np.zeros((kthta,latLen,lonLen))
+        tdwn = np.zeros((kthta,latLen,lonLen))
+        tdwn_ref = np.zeros((kthta,latLen,lonLen))
+        tup = np.zeros((kthta,latLen,lonLen))
+
+
+        dlt = np.empty((kthta,latLen,lonLen))
+
+        dlp = np.empty((kthta,latLen,lonLen))
+        absVor = np.zeros((kthta,latLen,lonLen))
+        p0 = 100000.
+        kappa = 2./7.
+        gravity = 9.80665
+
+
+        args = []
+        for uthta2d,vthta2d in zip(uthta,vthta):
+            w = VectorWind(uthta2d,vthta2d)
+            absVorLevel=w.absolutevorticity()
+            b = absVorLevel[newaxis,:,:]
+            args.append(b)
+        absVor = np.concatenate(args,axis=0)
+        # For internal levels
+
+
+        #print(np.array_equal(isPthtaEqual2,pressureBool))
+
+        isPthtaEqual2 = (pthta[2:,:,:] == pthta[0:-2,:,:])
+        pthta[2:,:,:] = np.where(isPthtaEqual2,pthta[2:,:,:]+10,pthta[2:,:,:])
+
+
+        #pthta[0:-2,:,:] = np.where(isPthtaEqual2,pthta[0:-2,:,:]+10,pthta[0:-2,:,:])
+        #isPthtaEqual3 = (pthtaRef[2:,:,:] == pthtaRef[0:-2,:,:])
+
+        ipv[1:-1,:,:] = -999.99
+        hasPthta = pthta[1:-1,:,:] > 0
+        hasPthta0 = pthta[0:-2,:,:] > 0
+        hasAbsVor = absVor[1:-1,:,:] > 0
+
+
+        #tdwn = np.where(hasPthta & hasPthta0 & hasAbsVor,thta[0:-3,None,None] * (pthta[0:-2,:,:]/p0)**kappa,tdwn)
+        tdwn[1:-1,:,:] =  thta[0:-3,None,None]*(pthta[0:-2,:,:]/p0)**kappa
+
+        tup[1:-1,:,:] = thta[2:-1,None,None]*(pthta[2:,:,:]/p0)**kappa
+
+
+
+        dlt[1:-1,:,:] = np.log(tup[1:-1,:,:]/tdwn[1:-1,:,:])
+
+
+        dlp[1:-1,:,:] = np.log(pthta[2:,:,:]/pthta[0:-2,:,:])
+
+        dltdlp[1:-1,:,:] = dlt[1:-1,:,:]/dlp[1:-1,:,:]
+
+        stabl[1:-1,:,:] = (thta[1:-2,None,None]/pthta[1:-1,:,:]) *(dltdlp[1:-1,:,:]-kappa)
+
+        ipv[1:-1,:,:] = -gravity*absVor[1:-1,:,:]*stabl[1:-1,:,:]
+
+
+
+
+        # Boundary Layer
+
+        hasNoPthta = pthta[0,:,:] <= 0.
+        hasNoPthta0 = pthta[1,:,:] <= 0.
+        hasNoAbsVor = absVor[0,:,:] < -999.99
+
+        ipv[0,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[0,:,:])
+        
+        isPthtaEqual = pthta[1,:,:] == pthta[0,:,:]
+        pthta[1,:,:] = np.where(isPthtaEqual,pthta[1,:,:]+10,pthta[1,:,:])
+
+        tdwn[0,:,:] = thta[0,None,None] * (pthta[0,:,:]/p0)**kappa
+        tup[0,:,:] =  thta[1,None,None] * (pthta[1,:,:]/p0)**kappa
+        dlt[0,:,:] = np.log(tup[0,:,:]) - np.log(tdwn[0,:,:])
+        dlp[0,:,:] = np.log(pthta[1,:,:])-np.log(pthta[0,:,:])
+        dltdlp[0,:,:] = dlt[0,:,:]/dlp[0,:,:]
+        stabl[0,:,:] = (thta[0,None,None]/pthta[0,:,:]) *(dltdlp[0,:,:]-kappa)
+
+        ipv[0,:,:] = -gravity * absVor[0,:,:] * stabl[0,:,:]
+
+
+
+
+        # Topmost Layer
+        hasNoPthta = pthta[-1,:,:] <= 0.
+        hasNoPthta0 = pthta[-2,:,:] <= 0.
+        hasNoAbsVor = absVor[-1,:,:] < -999.99
+
+        ipv[-1,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[-1,:,:])
+
+        isPthtaEqual = pthta[-1,:,:] == pthta[-2,:,:]
+        pthta[-1,:,:] = np.where(isPthtaEqual,pthta[-1,:,:]+10,pthta[-1,:,:])
+
+        
+        tdwn[-1,:,:] = thta[-3,None,None]*(pthta[-2,:,:]/p0)**kappa
+        tup[-1,:,:] =  thta[-2,None,None]*(pthta[-1,:,:]/p0)**kappa
+
+        dlt[-1,:,:] = np.log(tup[-1,:,:]/tdwn[-1,:,:])
+        dlp[-1,:,:] = np.log(pthta[-1,:,:]/pthta[-2,:,:])
+        dltdlp[-1,:,:] = dlt[-1,:,:]/dlp[-1,:,:]
+        stabl[-1,:,:] = (thta[-2,None,None]/pthta[-1,:,:]) *(dltdlp[-1,:,:]-kappa)
+        ipv[-1,:,:] = -gravity * absVor[-1,:,:] * stabl[-1,:,:]
+
+        args = []
+        for ipv2d in ipv:
+            smoothed2dIPV = ndimage.gaussian_filter(ipv2d*1e6,sigma=2,order=0)
+            b = smoothed2dIPV[newaxis,:,:]
+            args.append(b)
+        smoothedIPV = np.concatenate(args,axis=0)
+
+        return smoothedIPV
+
+
+        
+    def sipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
+
+        latLen = len(lats)
+        lonLen = len(lons)
         ipv = np.empty((kthta,latLen,lonLen))
         p0 = 100000.
         kappa = 2./7.
@@ -513,104 +652,22 @@ class potential_vorticity:
         ntrunc = int(lonLen/2)
         np.seterr(all='warn')
         warnings.filterwarnings('error')
-        print(thta.shape,kthta)
-        t1 = time.time()
-        absVor = np.empty((kthta,latLen,lonLen))        
-        args = []
-
-        for j in range(0,latLen):
-            for i in range(0,lonLen):
-                print(ipv[0,j,i],ipv_ref[0,j,i])
-                
-        sys.exit()
-        # Topmost Layer
-        hasNoPthta = pthta[-1,:,:] <= 0.
-        hasNoPthta0 = pthta[-2,:,:] <= 0.
-        hasNoAbsVor = absVor[-1,:,:] < -999.99
-
-        ipv[-1,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[-1,:,:])
-
-        tdwn = thta[-3,None,None]*(pthta[-2,:,:]/p0)**kappa
-        tup =  thta[-2,None,None]*(pthta[-1,:,:]/p0)**kappa
-
-        dlt = np.log(tup/tdwn)
-        dlp = np.log(pthta[-1,:,:]/pthta[-2,:,:])
-        dltdlp = dlt/dlp
-        stabl = (thta[-1,None,None]/pthta[-1,:,:]) *(dltdlp-kappa)
-        ipv[-1,:,:] = -gravity * absVor[-1,:,:] * stabl
-        ipv[-1,:,:] = ndimage.gaussian_filter(ipv[-1,:,:]*1e6,sigma=2,order=0)
-
-
-        # For internal levels
-        ipv[1:-1,:,:] = -999.99
-        hasPthta = pthta[1:-1,:,:] > 0
-        hasPthta0 = pthta[0:-2,:,:] > 0
-        hasAbsVor = absVor[1:-1,:,:] > 0
-
-
-        tdwn = np.where(hasPthta & hasPthta0 & hasAbsVor,thta[0:-3,None,None] * (pthta[0:-2,:,:]/p0**kappa),tdwn)
-
-        tup =  np.where(hasPthta & hasPthta0 & hasAbsVor,thta[2:-1,None,None] * pthta[1:-1,:,:]/p0**kappa,tup)
-
-
-        try:
-            
-            dlt = np.log(tup/tdwn)
-            dlp = np.log(pthta[2:,:,:]/pthta[0:-2,:,:])
-            dltdlp = dlt/dlp
-        except Warning:
-            print(sys.exc_info())
-        sys.exit()
-        stabl = (thta[1:-2,None,None]/pthta[1:-1,:,:]) *(dltdlp-kappa)
-        ipv[1:-1,:,:] = -gravity * absVor[1:-1,:,:] * stabl
-        ipv[1:-1,:,:] = ndimage.gaussian_filter(ipv[1:-1,:,:]*1e6,sigma=2,order=0)
-
-        sys.exit()
-
-        return ipv
-       """
-    
-    def sipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
-
-        latLen = len(lats)
-        lonLen = len(lons)
-        ipv = np.zeros((kthta,latLen,lonLen))
-        ipv_ref = np.empty((kthta,latLen,lonLen))
-        dltdlp_ref = np.empty((kthta,latLen,lonLen))
-        dltdlp = np.empty((kthta,latLen,lonLen))
-        stabl = np.zeros((kthta,latLen,lonLen))
-        stabl_ref = np.empty((kthta,latLen,lonLen))
-        tdwn_ref = np.zeros((kthta,latLen,lonLen))
-        tdwn = np.zeros((kthta,latLen,lonLen))
-        tup = np.zeros((kthta,latLen,lonLen))
+        tdwn_ref = np.empty((kthta,latLen,lonLen))
         tup_ref = np.empty((kthta,latLen,lonLen))
         dlt_ref = np.empty((kthta,latLen,lonLen))
-        dlt = np.empty((kthta,latLen,lonLen))
         dlp_ref = np.empty((kthta,latLen,lonLen))
-        dlp = np.empty((kthta,latLen,lonLen))
-        absVor = np.zeros((kthta,latLen,lonLen))
-
-        p0 = 100000.
-        kappa = 2./7.
-        gravity = 9.80665
-        rearth = 6371221.3
-        ntrunc = int(lonLen/2)
-        np.seterr(all='warn')
-        warnings.filterwarnings('error')
+        dltdlp_ref = np.empty((kthta,latLen,lonLen))
+        stabl_ref = np.empty((kthta,latLen,lonLen))
+        ipv_ref = np.empty((kthta,latLen,lonLen))
         t1 = time.time()
-        #for uthta2d,vth2a2d in zip(uthta,vthta):
-        #    print(uthta2d.shape)
-        #    sys.exit()
-        #x = Spharm(lonLen,latLen,ntrunc,rearth,gridtype='regular')
-        args1 = []
-        """
+    
         for k in range(0,kthta):
             uthta2d = uthta[k,:,:]
             vthta2d = vthta[k,:,:]
             w = VectorWind(uthta2d,vthta2d)
+
             absv=w.absolutevorticity()
-            b = absv[newaxis,:,:]
-            args1.append(b)
+
             for j in range(0,latLen):
                 for i in range(0,lonLen):
                     if (k == 0):
@@ -633,7 +690,7 @@ class potential_vorticity:
                             ipv_ref[k,j,i] = -gravity * absv[j,i] * stabl_ref[k,j,i]
                     elif (k == kthta-1):
                         if (pthta[k,j,i] <= 0. or pthta[k-1,j,i] <= 0. or absv[j,i] < missingData):
-                            ipv[k,j,i] = missingData
+                            ipv_ref[k,j,i] = missingData
                         else:
                             tdwn_ref[k,j,i] = thta[k-1] * (pthta[k-1,j,i]/p0)**kappa
                             tup_ref[k,j,i] =  thta[k] * (pthta[k,j,i]/p0)**kappa
@@ -644,32 +701,33 @@ class potential_vorticity:
                             ipv_ref[k,j,i] = -gravity * absv[j,i] * stabl_ref[k,j,i]
                     else:
                         if (pthta[k+1,j,i] > 0. and pthta[k-1,j,i] > 0. and absv[j,i] > missingData):
-                            tdwn_ref[k,j,i] =  thta[k-1]*(pthta[k-1,j,i]/p0)**kappa
+                            tdwn_ref[k,j,i] = thta[k-1] * (pthta[k-1,j,i]/p0)**kappa
                             tup_ref[k,j,i] =  thta[k+1] * (pthta[k+1,j,i]/p0)**kappa
                             dlt_ref[k,j,i] = np.log(tup_ref[k,j,i]/tdwn_ref[k,j,i])
                             if (pthta[k+1,j,i] == pthta[k-1,j,i]):
+                                #print("here")
                                 pthta[k+1,j,i] +=10
                             dlp_ref[k,j,i] = np.log(pthta[k+1,j,i]/pthta[k-1,j,i])
 
                             try:
                                 dltdlp_ref[k,j,i] = dlt_ref[k,j,i]/dlp_ref[k,j,i]
                             except Warning:
-                                print(dlt_ref[k,j,i],dlp_ref[k,j,i])
+                                print(dlt,dlp)
                             stabl_ref[k,j,i] = (thta[k]/pthta[k,j,i]) *(dltdlp_ref[k,j,i]-kappa)
                             ipv_ref[k,j,i] = -gravity * absv[j,i] * stabl_ref[k,j,i]
                             #print(absv[j,i])
                         elif (pthta[k+1,j,i] <= 0. and pthta[k-1,j,i] > 0. and pthta[k,j,i] > 0. and absv[j,i] > missingData):
                             tdwn_ref[k,j,i] = thta[k-1]*(pthta[k-1,j,i]/p0)**kappa
                             tup_ref[k,j,i] =  thta[k]*(pthta[k,j,i]/p0)**kappa
-                            dlt_ref[k,j,i] = np.log(tup[k,j,i]/tdwn[k,j,i])
+                            dlt_ref[k,j,i] = np.log(tup_ref[k,j,i]/tdwn_ref[k,j,i])
                             dlp_ref[k,j,i] = np.log(pthta[k,j,i]/pthta[k-1,j,i])
                             dltdlp_ref[k,j,i] = dlt_ref[k,j,i]/dlp_ref[k,j,i]
-                            stabl_ref[k,j,i] = (thta[k]/pthta[k,j,i]) *(dltdlp_ref[k,j,i]-kappa)
+                            stabl = (thta[k]/pthta[k,j,i]) *(dltdlp-kappa)
                             ipv_ref[k,j,i] = -gravity * absv[j,i] * stabl_ref[k,j,i]
                         elif (pthta[k+1,j,i] > 0. and pthta[k-1,j,i] <= 0. and pthta[k,j,i] > 0. and absv[j,i] > missingData):
                             tdwn_ref[k,j,i] = thta[k] * (pthta[k,j,i]/p0)**kappa
                             tup_ref[k,j,i] =  thta[k+1] * (pthta[k+1,j,i]/p0)**kappa
-                            dlt_ref[k,j,i] = np.log(tup[k,j,i]/tdwn[k,j,i])
+                            dlt_ref[k,j,i] = np.log(tup_ref[k,j,i]/tdwn_ref[k,j,i])
                             dlp_ref[k,j,i] = np.log(pthta[k+1,j,i]/pthta[k,j,i])
                             dltdlp_ref[k,j,i] = dlt_ref[k,j,i]/dlp_ref[k,j,i]
                             stabl_ref[k,j,i] = (thta[k]/pthta[k,j,i]) *(dltdlp_ref[k,j,i]-kappa)
@@ -678,188 +736,7 @@ class potential_vorticity:
                             ipv_ref[k,j,i] = missingData
 
             ipv_ref[k,:,:] = ndimage.gaussian_filter(ipv_ref[k,:,:]*1e6,sigma=2,order=0)
-
-
-        absvor_ref = np.concatenate(args1,axis=0)
-        """
-        args = []
-        for uthta2d,vthta2d in zip(uthta,vthta):
-            w = VectorWind(uthta2d,vthta2d)
-            absVorLevel=w.absolutevorticity()
-            b = absVorLevel[newaxis,:,:]
-            args.append(b)
-        absVor = np.concatenate(args,axis=0)
-        print(absVor.shape)
-
-
-
-        # Boundary Layer
-
-        hasNoPthta = pthta[0,:,:] <= 0.
-        hasNoPthta0 = pthta[1,:,:] <= 0.
-        hasNoAbsVor = absVor[0,:,:] < -999.99
-
-        ipv[0,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[0,:,:])
-        
-
-        tdwn[0,:,:] = thta[0,None,None] * (pthta[0,:,:]/p0)**kappa
-        tup[0,:,:] =  thta[1,None,None] * (pthta[1,:,:]/p0)**kappa
-        dlt[0,:,:] = np.log(tup[0,:,:]) - np.log(tdwn[0,:,:])
-        dlp[0,:,:] = np.log(pthta[1,:,:])-np.log(pthta[0,:,:])
-        dltdlp[0,:,:] = dlt[0,:,:]/dlp[0,:,:]
-        stabl[0,:,:] = (thta[0,None,None]/pthta[0,:,:]) *(dltdlp[0,:,:]-kappa)
-
-        ipv[0,:,:] = -gravity * absVor[0,:,:] * stabl[0,:,:]
-
-        ipv[0,:,:] = ndimage.gaussian_filter(ipv[0,:,:]*1e6,sigma=2,order=0)
-
-
-        # Topmost Layer
-        hasNoPthta = pthta[-1,:,:] <= 0.
-        hasNoPthta0 = pthta[-2,:,:] <= 0.
-        hasNoAbsVor = absVor[-1,:,:] < -999.99
-
-        ipv[-1,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[-1,:,:])
-
-        tdwn[-1,:,:] = thta[-3,None,None]*(pthta[-2,:,:]/p0)**kappa
-        tup[-1,:,:] =  thta[-2,None,None]*(pthta[-1,:,:]/p0)**kappa
-
-        dlt[-1,:,:] = np.log(tup[-1,:,:]/tdwn[-1,:,:])
-        dlp[-1,:,:] = np.log(pthta[-1,:,:]/pthta[-2,:,:])
-        dltdlp[-1,:,:] = dlt[-1,:,:]/dlp[-1,:,:]
-        stabl[-1,:,:] = (thta[-2,None,None]/pthta[-1,:,:]) *(dltdlp[-1,:,:]-kappa)
-        ipv[-1,:,:] = -gravity * absVor[-1,:,:] * stabl[-1,:,:]
-        ipv[-1,:,:] = ndimage.gaussian_filter(ipv[-1,:,:]*1e6,sigma=2,order=0)
-        
-
-        # For internal levels
-
-        #isPthtaEqual = pthta[1:-1,:,:] == pthta[0:-2,:,:]
-        #pthta[1:-1,:,:] = np.where(isPthtaEqual,pthta[1:-1,:,:]+10,pthta[1:-1,:,:])
-
-        ipv[1:-1,:,:] = -999.99
-        hasPthta = pthta[1:-1,:,:] > 0
-        hasPthta0 = pthta[0:-2,:,:] > 0
-        hasAbsVor = absVor[1:-1,:,:] > 0
-
-
-        #tdwn = np.where(hasPthta & hasPthta0 & hasAbsVor,thta[0:-3,None,None] * (pthta[0:-2,:,:]/p0)**kappa,tdwn)
-        tdwn[1:-1,:,:] =  thta[0:-3,None,None]*(pthta[0:-2,:,:]/p0)**kappa
-
-        tup[1:-1,:,:] = thta[2:-1,None,None]*(pthta[2:,:,:]/p0)**kappa
-
-
-        try:
-            dlt[1:-1,:,:] = np.log(tup[1:-1,:,:]/tdwn[1:-1,:,:])
-
-
-            dlp[1:-1,:,:] = np.log(pthta[2:,:,:]/pthta[0:-2,:,:])
-
-            dltdlp[1:-1,:,:] = dlt[1:-1,:,:]/dlp[1:-1,:,:]
-
-        except Warning:
-            print(sys.exc_info())
-        stabl[1:-1,:,:] = (thta[1:-2,None,None]/pthta[1:-1,:,:]) *(dltdlp[1:-1,:,:]-kappa)
-
-        ipv[1:-1,:,:] = -gravity*absVor[1:-1,:,:]*stabl[1:-1,:,:]
-
-        ipv[1:-1,:,:] = ndimage.gaussian_filter(ipv[1:-1,:,:]*1e6,sigma=2,order=0)
-
-        return ipv
-
-
-        
-    def sipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
-
-        latLen = len(lats)
-        lonLen = len(lons)
-        ipv = np.empty((kthta,latLen,lonLen))
-        p0 = 100000.
-        kappa = 2./7.
-        gravity = 9.80665
-        rearth = 6371221.3
-        ntrunc = int(lonLen/2)
-        np.seterr(all='warn')
-        warnings.filterwarnings('error')
-        
-        t1 = time.time()
-    
-        for k in range(0,kthta):
-            uthta2d = uthta[k,:,:]
-            vthta2d = vthta[k,:,:]
-            w = VectorWind(uthta2d,vthta2d)
-
-            absv=w.absolutevorticity()
-
-            for j in range(0,latLen):
-                for i in range(0,lonLen):
-                    if (k == 0):
-                        if (pthta[k,j,i] <= 0. or pthta[k+1,j,i] <= 0. or absv[j,i] < missingData):
-                            ipv[k,j,i] = missingData
-                        else:
-                            tdwn = thta[k] * (pthta[k,j,i]/p0)**kappa
-                            tup =  thta[k+1] * (pthta[k+1,j,i]/p0)**kappa
-                            dlt = np.log(tup) - np.log(tdwn)
-                            if (pthta[k+1,j,i] == pthta[k,j,i]):
-                                pthta[k+1,j,i] +=10
-                            dlp = np.log(pthta[k+1,j,i])-np.log(pthta[k,j,i])
-                            try:
-                                dltdlp = dlt/dlp
-                            except Warning:
-                                print(pthta[k+1,j,i],pthta[k,j,i])
-                                print(sys.exc_info())
-                                print(dlt,dlp)
-                                sys.exit()
-                            stabl = (thta[k]/pthta[k,j,i]) *(dltdlp-kappa)
-                            ipv[k,j,i] = -gravity * absv[j,i] * stabl
-                    elif (k == kthta-1):
-                        if (pthta[k,j,i] <= 0. or pthta[k-1,j,i] <= 0. or absv[j,i] < missingData):
-                            ipv[k,j,i] = missingData
-                        else:
-                            tdwn = thta[k-1] * (pthta[k-1,j,i]/p0)**kappa
-                            tup =  thta[k] * (pthta[k,j,i]/p0)**kappa
-                            dlt = np.log(tup/tdwn)
-                            dlp = np.log(pthta[k,j,i]/pthta[k-1,j,i])
-                            dltdlp = dlt/dlp
-                            stabl = (thta[k]/pthta[k,j,i]) *(dltdlp-kappa)
-                            ipv[k,j,i] = -gravity * absv[j,i] * stabl
-                    else:
-                        if (pthta[k+1,j,i] > 0. and pthta[k-1,j,i] > 0. and absv[j,i] > missingData):
-                            tdwn = thta[k-1] * (pthta[k-1,j,i]/p0)**kappa
-                            tup =  thta[k+1] * (pthta[k+1,j,i]/p0)**kappa
-                            dlt = np.log(tup/tdwn)
-                            if (pthta[k+1,j,i] == pthta[k-1,j,i]):
-                                pthta[k+1,j,i] +=10
-                            dlp = np.log(pthta[k+1,j,i]/pthta[k-1,j,i])
-
-                            try:
-                                dltdlp = dlt/dlp
-                            except Warning:
-                                print(dlt,dlp)
-                            stabl = (thta[k]/pthta[k,j,i]) *(dltdlp-kappa)
-                            ipv[k,j,i] = -gravity * absv[j,i] * stabl
-                            #print(absv[j,i])
-                        elif (pthta[k+1,j,i] <= 0. and pthta[k-1,j,i] > 0. and pthta[k,j,i] > 0. and absv[j,i] > missingData):
-                            tdwn = thta[k-1]*(pthta[k-1,j,i]/p0)**kappa
-                            tup =  thta[k]*(pthta[k,j,i]/p0)**kappa
-                            dlt = np.log(tup/tdwn)
-                            dlp = np.log(pthta[k,j,i]/pthta[k-1,j,i])
-                            dltdlp = dlt/dlp
-                            stabl = (thta[k]/pthta[k,j,i]) *(dltdlp-kappa)
-                            ipv[k,j,i] = -gravity * absv[j,i] * stabl
-                        elif (pthta[k+1,j,i] > 0. and pthta[k-1,j,i] <= 0. and pthta[k,j,i] > 0. and absv[j,i] > missingData):
-                            tdwn = thta[k] * (pthta[k,j,i]/p0)**kappa
-                            tup =  thta[k+1] * (pthta[k+1,j,i]/p0)**kappa
-                            dlt = np.log(tup/tdwn)
-                            dlp = np.log(pthta[k+1,j,i]/pthta[k,j,i])
-                            dltdlp = dlt/dlp
-                            stabl = (thta[k]/pthta[k,j,i]) *(dltdlp-kappa)
-                            ipv[k,j,i] = -gravity * absv[j,i] * stabl
-                        else:
-                            ipv[k,j,i] = missingData
-
-            ipv[k,:,:] = ndimage.gaussian_filter(ipv[k,:,:]*1e6,sigma=2,order=0)
-        return ipv
+        return dlt_ref,dlp_ref,dltdlp_ref,stabl_ref,ipv_ref
 
     
     def ipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
@@ -1021,14 +898,10 @@ class potential_vorticity:
 
 
         # Calculate potential temperature at the surface. Keep track of lowest value.
+        # Calculate potential temperature at the surface. Keep track of lowest value.
+        potsfc = self.pot(tsfc,psfc)
+        thtalo = np.min(potsfc)
 
-        thtalo = self.pot(tsfc[0,0],psfc[0,0])
-
-        for j in range(0,latLen):
-            for i in range(0,lonLen):
-                potsfc[j,i] = self.pot(tsfc[j,i],psfc[j,i])
-                if (potsfc[j,i] < thtalo):
-                    thtalo = potsfc[j,i]
         # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
 
         thtahi = self.pot(tpres[9,0,0],plevs[9])
@@ -1106,14 +979,14 @@ class potential_vorticity:
         alogp[:] = np.log(plevs[:])
         maxit = 0
         resmax = 1.
-        pthta = np.zeros((kthta,latLen,lonLen))
+        pthta = np.zeros((kthta,latLen,lonLen),dtype='float64')
         
         for kout in range(0,kthta):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
                     # Begin IF
                     if (thta[kout] < potsfc[j,i]):
-                        pthta[kout,j,i] = psfc[j,i]
+                        pthta[kout,j,i] = psfc[j,i] + random.uniform(0,0.01)
                     elif (thta[kout] > thtap[-1,j,i]):
                         pthta[kout,j,i] = 1.
                     elif (abs(thta[kout]-potsfc[j,i]) < 0.001):
@@ -1222,17 +1095,17 @@ class potential_vorticity:
         latLen = len(lats)
         lonLen = len(lons)
         sthta = np.zeros((kthta,latLen,lonLen))
-        lnpu1p = np.zeros((plvls))
-        lnpu2p = np.zeros((plvls-1))
+        lnpu1p = np.zeros((plvls-1))
+        lnpu2p = np.zeros((plvls-2))
         #spres = np.transpose(spres,(2,0,1))
 
         np.seterr(all='warn')
         warnings.filterwarnings('error')
         
-        for kin in range(0,plvls-1):
-            lnpu1p[kin] = Decimal(np.log(pres[kin]/pres[kin-1]))
-            lnpu2p[kin] = Decimal(np.log(pres[kin]/pres[kin-2]))
-            
+
+        lnpu1p[0:-1] = np.log(pres[1:-1]/pres[0:-2])
+        lnpu2p[0:] = np.log(pres[2:]/pres[:-2])
+    
         lnpu1p[-1] = float(np.log(pres[-1]/pres[-2]))
 
         for kout in range(0,kthta):
@@ -1259,6 +1132,8 @@ class potential_vorticity:
                                         sup = spres[kin+1,j,i]
                                         lnp1p2 = lnpu1p[kin]
                                         lnp1p3 = float(np.log(pup/pdwn))
+                                        if (pmid == pdwn):
+                                            pmid += 0.01
                                         lnp2p3 = float(np.log(pmid/pdwn))
                                         #print(pmid,pup)
                                     else:
@@ -1291,7 +1166,7 @@ class potential_vorticity:
                                         lnp1p2 = lnpu1p[kin]
                                         #lnp1p3 = np.log(pup/pdwn)
                                         if (pup == pdwn):
-                                            pup += 10
+                                            pup += 1
                                         lnp1p3 = np.log(pup) -np.log(pdwn)
                                         lnp2p3 = float(np.log(pmid/pdwn))
                                     else:
@@ -1324,3 +1199,4 @@ class potential_vorticity:
                             print(sys.exc_info())
                             sys.exit()
         return sthta
+     
