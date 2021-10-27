@@ -504,19 +504,23 @@ class potential_vorticity:
         latLen = len(lats)
         lonLen = len(lons)
         t1 = time.time()
-        dltRef,dlpRef,dltdlpRef,stablRef,ipvRef = self.sipv(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
+        ipvRef = self.sipv(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
 
 
-        smoothedIPV = np.empty((kthta,latLen,lonLen))
+
         t2 = time.time()
         print(t2-t1)
         t3 = time.time()
-        dlt,dlp,dltdlp,stabl,ipv = self.sipv2(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
-        print(dlt.dtype,dlp.dtype,dltdlp.dtype)
-        print(smoothedIPV.shape)
+        ipv = self.sipv2(lats,lons,kthta,thta,pthta,uthta,vthta,missingData)
         t4 = time.time()
         print(t4-t3)
-        return smoothedIPV
+        for k in range(0,16):
+            for j in range(0,latLen):
+                for i in range(0,lonLen):
+                    if (ipvRef[k,j,i]-ipv[k,j,i] != 0.):
+                        print(ipvRef[k,j,i]-ipv[k,j,i])
+        sys.exit()
+        return ipv
     
 
     def sipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
@@ -550,14 +554,13 @@ class potential_vorticity:
         # For internal levels
 
 
-        #print(np.array_equal(isPthtaEqual2,pressureBool))
+
 
         isPthtaEqual2 = (pthta[2:,:,:] == pthta[0:-2,:,:])
         pthta[2:,:,:] = np.where(isPthtaEqual2,pthta[2:,:,:]+10,pthta[2:,:,:])
 
 
-        #pthta[0:-2,:,:] = np.where(isPthtaEqual2,pthta[0:-2,:,:]+10,pthta[0:-2,:,:])
-        #isPthtaEqual3 = (pthtaRef[2:,:,:] == pthtaRef[0:-2,:,:])
+
 
         ipv[1:-1,:,:] = -999.99
         hasPthta = pthta[1:-1,:,:] > 0
@@ -565,7 +568,7 @@ class potential_vorticity:
         hasAbsVor = absVor[1:-1,:,:] > 0
 
 
-        #tdwn = np.where(hasPthta & hasPthta0 & hasAbsVor,thta[0:-3,None,None] * (pthta[0:-2,:,:]/p0)**kappa,tdwn)
+
         tdwn[1:-1,:,:] =  thta[0:-3,None,None]*(pthta[0:-2,:,:]/p0)**kappa
 
         tup[1:-1,:,:] = thta[2:-1,None,None]*(pthta[2:,:,:]/p0)**kappa
@@ -629,13 +632,7 @@ class potential_vorticity:
         stabl[-1,:,:] = (thta[-2,None,None]/pthta[-1,:,:]) *(dltdlp[-1,:,:]-kappa)
         ipv[-1,:,:] = -gravity * absVor[-1,:,:] * stabl[-1,:,:]
 
-        args = []
-        for ipv2d in ipv:
-            smoothed2dIPV = ndimage.gaussian_filter(ipv2d*1e6,sigma=2,order=0)
-            b = smoothed2dIPV[newaxis,:,:]
-            args.append(b)
-        smoothedIPV = np.concatenate(args,axis=0)
-
+        smoothedIPV = ndimage.gaussian_filter(ipv*1e6,sigma=(0,2,2),order=0)
         return smoothedIPV
 
 
@@ -736,7 +733,7 @@ class potential_vorticity:
                             ipv_ref[k,j,i] = missingData
 
             ipv_ref[k,:,:] = ndimage.gaussian_filter(ipv_ref[k,:,:]*1e6,sigma=2,order=0)
-        return dlt_ref,dlp_ref,dltdlp_ref,stabl_ref,ipv_ref
+        return ipv_ref
 
     
     def ipv(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
