@@ -21,9 +21,9 @@ def main():
 
     cdo = Cdo()
 
-    cdo.remapbil("myGridDef",input="surface_temp_2023_6_1_00Z.nc",output="surface_temp_6_1_2023.nc")
-    cdo.remapbil("myGridDef",input="surface_uwnd_2023_6_1_00Z.nc",output="surface_uwnd_6_1_2023.nc")
-    cdo.remapbil("myGridDef",input="surface_vwnd_2023_6_1_00Z.nc",output="surface_vwnd_6_1_2023.nc")
+    cdo.remapbil("myGridDef",input="surface_temp_2023_10_1_00Z.nc",output="surface_temp_10_1_2023.nc")
+    cdo.remapbil("myGridDef",input="surface_uwnd_2023_10_1_00Z.nc",output="surface_uwnd_10_1_2023.nc")
+    cdo.remapbil("myGridDef",input="surface_vwnd_2023_10_1_00Z.nc",output="surface_vwnd_10_1_2023.nc")
 
 
     
@@ -53,12 +53,14 @@ def main():
     cdo.merge(input=" ".join(([fileVwndDictionary[key] for key in sorted(fileVwndDictionary,reverse=True)])), output='vwndFile.nc')
 
 
-    cdo.merge(input=" ".join(('tmpFile.nc','uwndFile.nc','vwndFile.nc','surface_temp_6_1_2023.nc','pres_sfc_2023_6_1_00Z.nc','surface_uwnd_6_1_2023.nc','surface_vwnd_6_1_2023.nc')),output='pvFile.nc')
+    cdo.merge(input=" ".join(('tmpFile.nc','uwndFile.nc','vwndFile.nc','surface_temp_10_1_2023.nc','pres_sfc_2023_10_1_00Z.nc','surface_uwnd_10_1_2023.nc','surface_vwnd_10_1_2023.nc')),output='pvFile.nc')
 
-    ds_pv = xr.open_mfdataset("pvFile.nc")
+    ds_pv = xr.open_mfdataset("pvFile.nc",chunks={'time':1})
     print(ds_pv)
+
     levels = ds_pv.coords['level'].values
     plevs = np.array(levels)
+    plevs = plevs*100
     print(plevs)
 
     ipvArgs = []
@@ -66,16 +68,24 @@ def main():
 
     vArgs= []
     
-    tmp = ds_pv.air
-    tsfc = ds_pv.air_2
-    psfc = ds_pv.pres
-    uwnd= ds_pv.uwnd_2
-    vwnd = ds_pv.vwnd_2
+    tmp = ds_pv.air.values
+    tsfc = ds_pv.air_2.values
+    psfc = ds_pv.pres.values
+    uwnd= ds_pv.uwnd_2.values
+    vwnd = ds_pv.vwnd_2.values
     u = ds_pv.uwnd.values
     v = ds_pv.vwnd.values
 
     lats = ds_pv.coords['lat'].values
     lons = ds_pv.coords['lon'].values
+    dates  = ds_pv.time.values
+    
+    dates = dates.astype(str)
+
+    dates=np.array(list(map(lambda v:re.sub('T',' ',v),dates)))
+    dates=np.array(list(map(lambda v:re.sub('\.[0]+',' ',v),dates)))
+    print(dates)
+
     dateMean = ds_pv.time.mean()
     dateMean = (dateMean.values)
     dateMean = np.datetime_as_string(dateMean)
@@ -85,16 +95,12 @@ def main():
     missingData = -999.99
     for i in range(0,tmp.shape[0]):
 
-        print(tmp[i,:,:,:].shape)
-
         tmpInstant = tmp[i,:,:,:]
-        
+
         tsfcInstant = tsfc[i,:,:]
         psfcInstant = psfc[i,:,:]
-
         ret = pv.p2thta(lats,lons,plevs,tsfcInstant,psfcInstant,tmpInstant)
         kthta,pthta,thta = ret
-        #print(thta)
         isent = np.where(thta == 360)[0]
         isent = isent[0]
         uwndInstant = uwnd[i,:,:]
@@ -186,7 +192,7 @@ def plotIPV(lats,lons,ipvPlot,uipvPlot,vipvPlot,ipvMeridional,date,temp):
     ax1.xaxis.set_major_formatter(lon_formatter)
     ax1.yaxis.set_major_formatter(lat_formatter)
     cbar = plt.colorbar(shear_fill, orientation='horizontal')
-    date = date.strftime('%Y-%m-%d-%H')
+    #date = date.strftime('%Y-%m-%d-%H')
     print(date)
     isent = str(temp)
     plt.title('PV '+ isent+'K surface '+ date, fontsize=16)
