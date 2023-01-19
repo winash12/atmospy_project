@@ -14,43 +14,6 @@ import traceback
 
 class potential_vorticity:
 
-
-    def latlon(self,ni,nj,lat1,lat2,lon1,lon2):
-        lon = np.empty(ni)
-        lat = np.empty(nj)
-        lon[0] = lon1
-        lon[-1] = lon2
-        if (lon1 < 0.0):
-            lon[1] = lon[1]  + 360.0
-        if (lon2 <= 0.0):
-            lon[-1] = lon[-1]+360.0
-        for i in range(0, ni):
-            lon[i] = lon[0] + float(i)*(lon[-1] - lon[0])/float(ni-1)
-            if (lon[i] > 180.0):
-                lon[i] = lon[i] - 360.
-
-        lat[0] = lat1
-        lat[-1] = lat2
-
-        if (lat2 > 90.0):
-            lat[-1] = 180. - lat[-1]
-        if (lat2 < -90.0):
-            lat[-1] = -180.0 - lat[-1]
-        if (lat1 > 90.0):
-            lat[0] = 180. - lat[0]
-        if (lat1 < -90.0):
-            lat[0] = -180.0 - lat[0]
-
-        for j in range(1,nj):
-            lat[j] = lat[0] + float(j)* (lat[-1] - lat[0])/float(nj-1)
-            if (lat[j] > 90.0):
-                lat[j] = 180.0  - lat[j]
-            if (lat[j] < -90.0):
-                lat[j] = -180.0 - lat[j]
-        if (lat[1] - lat[0] < 0):
-            lat = lat[::-1]
-        return (lat,lon)
-
     def ddx(self,s,lat,lon,missingData):
 
         lonLen = len(lon)
