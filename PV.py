@@ -143,60 +143,27 @@ class potential_vorticity:
         relv = np.empty((latLen,lonLen))
         missing = 0
         # Begin South Pole
-        for i in range(0,lonLen):
-            if (u[1,i] > -999.99):
-                relv[0,0] = u[1,i]
-                break
-            else:
-                missing = i
-        for i in range(missing+2,lonLen):
-            if (u[1,i] > -999.99):
-                relv[0,0] = relv[0,0]+u[1,i]
-            else:
-                missing = missing +1
-        if (abs(lon[0] - lon[-1]) > .0001) :
-            if (u[-1,1] > -999.99):
-                relv[0,0]= relv[0,0]+u[-1,1]
-            else:
-                missing = missing +1
-            relv[0,0] = relv[0,0]* math.cos(math.radians(lat[1]))/(1.-math.sin (math.radians(lat[1])))/rearth /float(lonLen - missing)
-        else:
-            relv[0,0] = relv[0,0]* math.cos(math.radians(lat[1]))/(1.-math.sin (math.radians(lat[1])))/rearth /float(lonLen -1- missing)
-        for i in range(1,lonLen):
-            relv[0,i] = relv[0,0]
-        #Begin  North Pole
-        missing = 0
-        for i in range(0,lonLen):
-            if (u[-2,i] > -999.99):
-                relv[-1,-1] = u[-2,i]
-                break
-            else:
-                missing = i
-        for i in range(missing+2,lonLen):
-            if (u[-2,i] > -999.99) :
-                relv[-1,-1] = relv[-1,-1]+u[-2,i]
-            else:
-                missing = missing +1
-        if (abs(lon[0] - lon[-1] > .001)):
-            if(u[-2,i] > -999.99):
-                relv[-1,-1]=relv[-1,-1]+u[-2,-1]
-            else:
-                missing = missing + 1
-            relv[-1,-1]=relv[-1,-1]* np.cos(np.radians(lat[-2]))/(1.-np.sin(np.radians(lat[-2])))/rearth /float(lonLen -1- missing)
-        else:
-            relv[-1,-1]=relv[-1,-1]* np.cos(math.radians(lat[-2]))/(1.-np.sin (np.radians(lat[-2])))/rearth /float(lonLen - 2-missing)        
-        for i in range(0,lonLen-1):
-            relv[-1,i] = relv[-1,-1]
+        uSouth = u[1,:]
+        uSouthMissing = (u[1,:] < -999.99).sum()
+        relv[0,:] = uSouth[uSouth > -999.99].sum()
+        sphericalCapFactor = math.cos(math.radians(lat[1]))/(1.-math.sin (math.radians(lat[1])))/rearth /float(lonLen-uSouthMissing)
+        relv[0,:] = relv[0,:]*sphericalCapFactor
+        
+        uNorth = u[-2,:]
+        uNorthMissing = (u[-2,:] < -999.99).sum()
+        relv[-1,:] = uNorth[uNorth > -999.99].sum()
+        sphericalCapFactor = math.cos(math.radians(lat[-2]))/(1.-math.sin (math.radians(lat[-2])))/rearth /float(lonLen-uNorthMissing)
+        relv[-1,:] = relv[-1,:]*sphericalCapFactor
 
+        hasNoU = u[1:-1,:] < -999.99
+        hasNoDvDx = dvdx[1:-1,:] < -999.99
+        hasNoDuDy = dudy[1:-1,:] < -999.99
+        
 
-        ## Global
-        for j in range(1,latLen-1):
-            for i in range(0,lonLen):
-                if (u[j,i] < -999.99 or dvdx[j,i] < -999.99 or dudy[j,i] < -999.99 ):
-                    relv[j,i] = -999.99
-                else:
-                    relv[j,i] = dvdx[j,i]-dudy[j,i]+(u[j,i]*np.tan(np.radians(lat[j])))/rearth
-
+        relv[1:-1,:] = np.where(hasNoU| hasNoDvDx |hasNoDuDy,-999.99,relv[1:-1,:])
+        
+        
+        relv[1:-1,:] = dvdx[1:-1,:]-dudy[1:-1,:]+(u[1:-1,:]*np.tan(np.radians(lat[1:-1,None])))/rearth
         return relv
 
     
