@@ -174,13 +174,14 @@ class potential_vorticity:
         latLen = len(lat)
         absv = np.empty((latLen,lonLen))
         omega = 7.29212e-05
-        for j in range(0,latLen):
-            corl = 2.0 * omega * np.sin(np.radians(lat[j]))
-            for i in range(0,lonLen):
-                if (relv[j,i] > -999.99):
-                    absv[j,i] = relv[j,i]+corl
-                else:
-                    absv[j,i] = -999.99
+        corl = np.empty((latLen))
+        corl = 2.0 * omega * np.sin(np.radians(lat))
+        corl = corl[:,None]
+        hasNoRelv = relv[:,:] < -999.99
+        absv = np.empty((latLen,lonLen))
+        absv = np.where(hasNoRelv,-999.99,absv[:,:])
+        absv  = relv + corl
+
         return absv
 
     def pot(self,tmp,pres):
