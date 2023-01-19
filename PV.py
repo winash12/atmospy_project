@@ -10,6 +10,7 @@ import scipy.ndimage as ndimage
 from windspharm.standard import VectorWind
 from windspharm.tools import prep_data, recover_data, order_latdim
 from decimal import *
+import traceback
 
 class potential_vorticity:
 
@@ -61,66 +62,43 @@ class potential_vorticity:
 
         # GRIB order - S-N(OUTER)
         #              W-E(INNER)
-        has_value = s[1:-1, :] > -999.99
-        has_left = s[:-2, :] > -999.99
-        has_right = s[2:, :] > -999.99
-        dsdx = np.where(has_right & has_value, (s[2:, :] - s[1:-1, :]) / di, dsdx)
-        dsdx = np.where(has_left & has_value, (s[1:-1, :] - s[:-2, :]) / di, dsdx)
-        dsdx = np.where(has_left & has_right, (s[2:, :] - s[:-2, :]) / (2. * di), dsdx)
-        for j in range(0,latLen):                
-            for i in range(1, lonLen-1):
-                if (abs(lat[j]) >= 90.0):
-                    dsdx[j,0] = 0.0
-                elif (s[j, i+1] > -999.99 and s[j,i-1] > -999.99):
-                    dsdx[j, i] = (s[j,i+1] - s[j,i-1])/(2.*di)
-                elif (s[j,i+1] < -999.99 and s[j,i-1] > -999.99 and s[j,i] > -999.99):
-                    dsdx[j,i] = (s[j,i] - s[j,i-1])/di
-                elif (s[j,i+1] > -999.99 and s[j,i-1] < -999.99 and s[j,i] > -999.99):
-                    dsdx[j,i]  = (s[j,i+1] - s[j,i])/di
-                else:
-                    dsdx[j,i] = -999.99
+        has_left = s[:,:-2] > -999.99
+        has_right = s[:,2:] > -999.99
+        has_value = s[:,1:-1] > -999.99
+        dsdx1 = np.zeros((73,144))
+        dsdx1[:, 1:-1] = -999.99
+        dsdx1[:, 1:-1] = np.where(has_right & has_value, (s[:,2:] - s[:,1:-1]) / di, dsdx1[:, 1:-1])
+        dsdx1[:, 1:-1] = np.where(has_left & has_value, (s[:,1:-1] - s[:,:-2]) / di, dsdx1[:, 1:-1])
+        dsdx1[:, 1:-1] = np.where(has_left & has_right, (s[:,2:] - s[:,:-2]) / (2. * di), dsdx1[:, 1:-1])
 
-        for j in range(0,latLen):
-            if (abs(lat[j]) >= 90.0):
-                dsdx[j,0] = 0.0
-                dsdx[j,-1] =0.0
-            elif (np.allclose(2*lon[0]-lon[-1],lon[1],1e-3) or np.allclose(2*lon[0]-lon[-1],lon[1] + 360.0,1e-3)):
-                if (s[j, 1] > -999.99 and s[j, -1] > -999.99):
-                    dsdx[j, 0] = (s[j, 1] - s[j,-1]) / (2.*di)
-                elif (s[j,1] < -999.99 and s[j,-1] > -999.99 and s[j,0] > -999.99) :
-                    dsdx[j,0] = (s[j,1] - s[j,-1]) / di
-                elif (s[j, 1] > -999.99 and s[j,-1] > -999.99 and s[j,0] > -999.99):
-                    dsdx[j,0] = (s [j,1] - s[j,0]) /di
-                else:
-                    dsdx[j, 0] = -999.99
-                if (s[j,0] > -999.99 and s[j,-2] > -999.99):
-                    dsdx[j,-1] = (s[j, 0] - s[j,-2]) / (2. * di)
-                elif (s[j,0] < -999.99 and s[j,-2] > -999.99 and s[j,-1] > -999.99):
-                    dsdx[j,-1] = (s[j,-1] - s[j,-2]) / di
-                elif (s[j,0] > -999.99 and s[j,-2] < -999.99 and s[j,-1] > -999.99) :
-                    dsdx[j,-1] = (s[j,1] - s[j,-1]) / di
-                else:
-                    dsdx[j, -1] = -999.99
-            elif (np.allclose(lon[0],lon[-1],1e-3)):
-                if (s[j, 1] > -999.99 and s[j,-2] > -999.99) :
-                    dsdx[j,0] = (s[j,1] - s[j,-2]) / (2. * di)
-                elif (s[j,1] < -999.99 and s[j,-2] > -999.99 and s[j,0] > -999.99) :
-                    dsdx[j,0] = (s[j,0] - s[j,-2]) / di
-                elif (s[1, j] > -999.99 and s[- 2, j] < -999.99 and s[0, j] > -999.99):
-                    dsdx[j,0] = (s[j,1] - s[j,0]) / di
-                else:
-                    dsdx[j,0] = -999.99
-                    dsdx[j,-1] = dsdx[j,0]
-            else:
-                if (s[j, 1] > -999.99 and s[j,0] > -999.99) :
-                    dsdx[j,0] = (s[j,1] - s[j,0]) /di
-                else:
-                    dsdx[j,0] = -999.99
-                
-                if (s[j,-1] > -999.99 and s[j,-2] > -999.99):
-                    dsdx[j,-1] = (s[j,-1] -s[j,-2]) /di
-                else:
-                    dsdx[j,-1] = -999.99
+
+        hasValue = s[1:-1,0] > -999.99
+        hasRight = s[1:-1,-1] > -999.99
+        hasLeft = s[1:-1,1] > -999.99
+        hasRight2 = s[1:-1,-2] > -999.99
+        
+
+
+        if (np.allclose(2*lon[0]-lon[-1],lon[1],1e-3) or np.allclose(2*lon[0]-lon[-1],lon[1] + 360.0,1e-3)):
+            dsdx1[1:-1,0] = -999.99
+            dsdx1[1:-1,-1] = -999.99
+            dsdx1[1:-1,0] = np.where(hasRight & hasValue,(s[1:-1,-1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
+            dsdx1[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
+            dsdx1[1:-1,0] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) /2. * di, dsdx1[1:-1, 0])
+            dsdx1[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx1[1:-1, -1])
+            dsdx1[1:-1,-1] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) / di, dsdx1[1:-1, -1])
+            dsdx1[1:-1,-1] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /2. * di, dsdx1[1:-1, -1])
+        elif (np.allclose(lon[0],lon[-1],1e-3)):
+            dsdx1[1:-1,0] = -999.99
+            dsdx1[1:-1,-1] = -999.99
+            dsdx1[1:-1,0] = np.where(hasLeft & hasRight2,(s[1:-1,1] - s[1:-1,-2]) / 2. *di, dsdx1[1:-1, 0])
+            dsdx1[1:-1,0] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /di, dsdx1[1:-1, 0])
+            dsdx1[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
+        else:
+            dsdx1[1:-1,0] = -999.99
+            dsdx1[1:-1,-1] = -999.99
+            dsdx1[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
+            dsdx1[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx1[1:-1, -1])
 
         return dsdx
 
@@ -522,7 +500,34 @@ class potential_vorticity:
         sys.exit()
         return ipv
     
+    def tests2thta(self,lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta):
 
+        latLen = len(lats)
+        lonLen = len(lons)
+        t1 = time.time()
+        uRef = self.s2thta(lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta)
+        sys.exit()
+
+
+        t2 = time.time()
+        print(t2-t1)
+
+        t3 = time.time()
+        u = self.s2thtaref(lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta)
+        t4 = time.time()
+        print(t4-t3)
+
+        for k in range(0,1):
+            for j in range(0,latLen):
+                for i in range(0,lonLen):
+                    print(uRef[k,j,i],u[k,j,i])
+
+        sys.exit()
+        return ipv
+    
+
+
+    
     def sipv2(self,lats,lons,kthta,thta,pthta,uthta,vthta,missingData):
 
         latLen = len(lats)
@@ -552,12 +557,6 @@ class potential_vorticity:
             args.append(b)
         absVor = np.concatenate(args,axis=0)
         # For internal levels
-
-
-
-
-        isPthtaEqual2 = (pthta[2:,:,:] == pthta[0:-2,:,:])
-        pthta[2:,:,:] = np.where(isPthtaEqual2,pthta[2:,:,:]+10,pthta[2:,:,:])
 
 
 
@@ -597,8 +596,6 @@ class potential_vorticity:
 
         ipv[0,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[0,:,:])
         
-        isPthtaEqual = pthta[1,:,:] == pthta[0,:,:]
-        pthta[1,:,:] = np.where(isPthtaEqual,pthta[1,:,:]+10,pthta[1,:,:])
 
         tdwn[0,:,:] = thta[0,None,None] * (pthta[0,:,:]/p0)**kappa
         tup[0,:,:] =  thta[1,None,None] * (pthta[1,:,:]/p0)**kappa
@@ -618,9 +615,6 @@ class potential_vorticity:
         hasNoAbsVor = absVor[-1,:,:] < -999.99
 
         ipv[-1,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[-1,:,:])
-
-        isPthtaEqual = pthta[-1,:,:] == pthta[-2,:,:]
-        pthta[-1,:,:] = np.where(isPthtaEqual,pthta[-1,:,:]+10,pthta[-1,:,:])
 
         
         tdwn[-1,:,:] = thta[-3,None,None]*(pthta[-2,:,:]/p0)**kappa
@@ -702,7 +696,6 @@ class potential_vorticity:
                             tup_ref[k,j,i] =  thta[k+1] * (pthta[k+1,j,i]/p0)**kappa
                             dlt_ref[k,j,i] = np.log(tup_ref[k,j,i]/tdwn_ref[k,j,i])
                             if (pthta[k+1,j,i] == pthta[k-1,j,i]):
-                                #print("here")
                                 pthta[k+1,j,i] +=10
                             dlp_ref[k,j,i] = np.log(pthta[k+1,j,i]/pthta[k-1,j,i])
 
@@ -902,7 +895,7 @@ class potential_vorticity:
         # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
 
         thtahi = self.pot(tpres[9,0,0],plevs[9])
-
+        print(plevs[9])
         for k in range(0,len(plevs)):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
@@ -920,7 +913,6 @@ class potential_vorticity:
                         
                         if (k >= 9 and thtap[k,j,i] > thtahi):
                             thtahi = thtap[k,j,i]
-
         # Identify isentropic levels to interpolate to
         kout = 0
         while (True):
@@ -1094,22 +1086,22 @@ class potential_vorticity:
         sthta = np.zeros((kthta,latLen,lonLen))
         lnpu1p = np.zeros((plvls-1))
         lnpu2p = np.zeros((plvls-2))
-        #spres = np.transpose(spres,(2,0,1))
 
+        
         np.seterr(all='warn')
         warnings.filterwarnings('error')
-        
+
 
         lnpu1p[0:-1] = np.log(pres[1:-1]/pres[0:-2])
         lnpu2p[0:] = np.log(pres[2:]/pres[:-2])
-    
-        lnpu1p[-1] = float(np.log(pres[-1]/pres[-2]))
+        lnpu1p[-1] = np.log(pres[-1]/pres[-2])
+
 
         for kout in range(0,kthta):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
                     if(pthta[kout,j,i] <= 0.):
-                        sthta[kout,j,i] = ssfc[j,i]
+                        sthta[kout,j,i] = -999.99
                     elif (np.allclose(abs(pthta[kout,j,i]-psfc[j,i]),0.001)):
                         sthta[kout,j,i] = ssfc[j,i]
                     else:
@@ -1119,28 +1111,34 @@ class potential_vorticity:
                             if (abs(pthta[kout,j,i]-pres[kin]) < 0.001):
                                 sthta[kout,j,i] = spres[kin,j,i]
                             elif (pthta[kout,j,i] > pres[kin]):
+
                                 if (kin == 0):
                                     pdwn = psfc[j,i]
                                     sdwn = ssfc[j,i]
+                                    #print(kin)
                                     if (abs(psfc[j,i]-pres[kin]) < 0.001):
                                         pmid = pres[kin]
                                         pup = pres[kin+1]
                                         smid = spres[kin,j,i]
                                         sup = spres[kin+1,j,i]
-                                        lnp1p2 = lnpu1p[kin]
+                                        lnp1p2 = float(lnpu1p[kin])
                                         lnp1p3 = float(np.log(pup/pdwn))
                                         if (pmid == pdwn):
                                             pmid += 0.01
-                                        lnp2p3 = float(np.log(pmid/pdwn))
-                                        #print(pmid,pup)
+                                        try:
+                                            lnp2p3 = float(np.log(pmid/pdwn))
+                                        except Warning:
+                                            print(lnp2p3)
+                                            print(traceback.format_exc())
+                                            #print(pmid,pup)
                                     else:
                                         pmid = pres[kin+1]
                                         pup = pres[kin+2]
                                         smid = spres[kin+1,j,i]
                                         sup = spres[kin+2,j,i]
-                                        lnp1p2 = lnpu1p[kin+1]
-                                        lnp1p3 = lnpu2p[kin]
-                                        lnp2p3 = lnpu1p[kin]
+                                        lnp1p2 = float(lnpu1p[kin+1])
+                                        lnp1p3 = float(lnpu2p[kin])
+                                        lnp2p3 = float(lnpu1p[kin])
                                         #print(pmid,pup,smid,sup)
                                 elif (kin == plvls-1):
                                     pdwn = pres[kin-2]
@@ -1149,9 +1147,9 @@ class potential_vorticity:
                                     sdwn = spres[kin-2,j,i]
                                     smid = spres[kin-1,j,i]
                                     sup = spres[kin,j,i]
-                                    lnp1p2 = lnpu1p[kin-1]
-                                    lnp1p3 = lnpu2p[kin-2]
-                                    lnp2p3 = lnpu1p[kin-2]
+                                    lnp1p2 = float(lnpu1p[kin-1])
+                                    lnp1p3 = float(lnpu2p[kin-2])
+                                    lnp2p3 = float(lnpu1p[kin-2])
                                 elif (psfc[j,i] < pres[kin-1]):
                                     pdwn = psfc[j,i]
                                     sdwn = ssfc[j,i]
@@ -1160,40 +1158,165 @@ class potential_vorticity:
                                         pup =  pres[kin+1]
                                         smid = spres[kin,j,i]
                                         sup = spres[kin+1,j,i]
-                                        lnp1p2 = lnpu1p[kin]
-                                        #lnp1p3 = np.log(pup/pdwn)
+                                        lnp1p2 = float(lnpu1p[kin])
                                         if (pup == pdwn):
-                                            pup += 1
-                                        lnp1p3 = np.log(pup) -np.log(pdwn)
+                                            pup += 0.01
+                                        lnp1p3 = float(np.log(pup/pdwn))
                                         lnp2p3 = float(np.log(pmid/pdwn))
                                     else:
                                         pmid = pres[kin+1]
                                         pup = pres[kin+2]
                                         smid = spres[kin+1,j,i]
                                         sup = spres[kin+2,j,i]
-                                        lnp1p2 = lnpu1p[kin+1]
-                                        lnp1p3 = lnpu2p[kin]
-                                        lnp2p3 = lnpu1p[kin]
+                                        lnp1p2 = float(lnpu1p[kin+1])
+                                        lnp1p3 = float(lnpu2p[kin])
+                                        lnp2p3 = float(lnpu1p[kin])
                                 else:
                                     pdwn = pres[kin-1]
+
                                     pmid = pres[kin]
                                     pup =  pres[kin+1]
                                     sdwn = spres[kin-1,j,i]
                                     smid = spres[kin,j,i]
                                     sup = spres[kin+1,j,i]
-                                    lnp1p2 = lnpu1p[kin]
-                                    lnp1p3 = lnpu2p[kin-1]
-                                    lnp2p3 = lnpu1p[kin-1]
+                                    lnp1p2 = float(lnpu1p[kin])
+                                    lnp1p3 = float(lnpu2p[kin-1])
+                                    lnp2p3 = float(lnpu1p[kin-1])
                                 looping = False
                             kin +=1
                         try:
-                            qdwn = float(np.log(pthta[kout,j,i]/pmid)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p3)
-                            qmid = float(-np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p2)
-                            qup = float(np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pmid)/lnp1p3/lnp1p2)
-                            sthta[kout,j,i] = float(qdwn*sdwn + qmid*smid + qup *sup)
+                            qdwn = np.log(pthta[kout,j,i]/pmid)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p3
+                            qmid = -np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p2
+                            qup = np.log(pthta[kout,j,i]/pdwn)*np.log(pthta[kout,j,i]/pmid)/lnp1p3/lnp1p2
+                            sthta[kout,j,i] = qdwn*sdwn + qmid*smid + qup *sup
                         except Warning:
-                            print(qmid,qup,sthta[kout,j,i])
-                            print(sys.exc_info())
-                            sys.exit()
+                            print(pup,pmid,lnp1p3,lnp2p3)
+                            exc_type, exc_obj, exc_tb = sys.exc_info()
+                            print(exc_type, exc_tb.tb_lineno)
+                            print(traceback.format_exc())
+
+        return sthta
+
+    
+    def s2thtaref(self,lats,lons,pres,kthta,ssfc,psfc,spres,thta,pthta):
+
+        plvls = len(pres)
+        latLen = len(lats)
+        lonLen = len(lons)
+        sthta = np.zeros((kthta,latLen,lonLen))
+        lnpu1p = np.zeros((plvls-1))
+        lnpu2p = np.zeros((plvls-2))
+        #spres = np.transpose(spres,(2,0,1))
+
+        np.seterr(all='warn')
+        warnings.filterwarnings('error')
+        
+        pdwn = np.zeros((kthta))
+
+        pmid = np.zeros((kthta))
+        pup = np.zeros((kthta))
+        sdwn = np.zeros((kthta,latLen,lonLen))
+        smid = np.zeros((kthta,latLen,lonLen))
+        sup = np.zeros((kthta,latLen,lonLen))
+        qdwn = np.zeros((kthta,latLen,lonLen))
+        qmid = np.zeros((kthta,latLen,lonLen))
+        qup = np.zeros((kthta,latLen,lonLen))
+        lnpu1p[0:-1] = np.log(pres[1:-1]/pres[0:-2])
+
+        lnpu2p[0:] = np.log(pres[2:]/pres[:-2])
+    
+        lnpu1p[-1] = float(np.log(pres[-1]/pres[-2]))
+
+        lnp1p2 = np.zeros((kthta))
+        lnp1p3 = np.zeros((kthta))
+        lnp2p3 = np.zeros((kthta))
+        isPthtaLess1 = abs(pthta[:,:,:]-psfc[None,:,:]) < 0.001
+        sthta = np.where(isPthtaLess1,ssfc[None,:,:],sthta)
+        #print(
+        pdwn[1:-1] = pres[0:-3]
+
+        pmid[1:-1] = pres[1:-2]
+
+        pup[1:-1] =  pres[2:-1]
+
+        sdwn[1:-1,:,:] = spres[0:-3,:,:]
+
+        smid[1:-1,:,:] = spres[1:-2,:,:]
+
+        sup[1:-1,:,:] = spres[2:-1,:,:]
+
+        
+        lnp1p2[1:-1] = lnpu1p[1:-1]
+
+        lnp1p3[1:-1] = lnpu2p[0:-1]
+
+        lnp2p3[1:-1] = lnpu1p[0:-2]
+
+        #lower boundary 
+        for j in range(0,latLen):
+            for i in range(0,lonLen):
+                pdwnsur = psfc[j,i]
+                sdwnsur = ssfc[j,i]
+                if (pthta[0,j,i] > pres[0]):
+                    if (abs(psfc[j,i]-pres[0]) < 0.001):
+                        pmidsur = pres[0] + random.uniform(0,0.01)
+                        pupsur = pres[1]
+                        smidsur = spres[0,j,i]
+                        supsur = spres[1,j,i]
+                        lnp1p2sur = float(lnpu1p[0])
+                        lnp1p3sur = float(np.log(pupsur/pdwnsur))
+                        try:
+                            lnp2p3sur = float(np.log(pmidsur/pdwnsur))
+                        except Warning:
+                            print(traceback.format_exc())
+                            #print(pmid,pup)
+                    else:
+                        pmidsur = pres[1]
+                        pupsur = pres[2]
+                        smidsur = spres[1,j,i]
+                        supsur = spres[2,j,i]
+                        lnp1p2sur = float(lnpu1p[1])
+                        lnp1p3sur = float(lnpu2p[0])
+                        lnp2p3sur = float(lnpu1p[0])
+                #print(pmid,pup,smid,sup)
+                qdwnsur = np.log(pthta[0,j,i]/pmidsur)*np.log(pthta[0,j,i]/pupsur)/lnp2p3sur/lnp1p3sur
+                qmidsur = -np.log(pthta[0,j,i]/pdwnsur)*np.log(pthta[0,j,i]/pupsur)/lnp2p3sur/lnp1p2sur
+                qupsur = np.log(pthta[0,j,i]/pdwnsur)*np.log(pthta[0,j,i]/pmidsur)/lnp1p3sur/lnp1p2sur
+                sthta[0,j,i] = qdwnsur*sdwnsur + qmidsur*smidsur + qupsur *supsur        
+
+        #top
+
+        pdwn[-1] = pres[-3]
+
+        sdwn[-1,:,:] = spres[-3,:,:]
+
+        pmid[-1] = pres[-2]
+        smid[-1,:,:] = spres[-2,:,:]
+
+        pup[-1] = pres[-1]
+        sup[-1,:,:] = spres[-1,:,:]
+
+        lnp1p2[-1] = lnpu1p[-1]
+
+        lnp1p3[-1] =   lnpu2p[-3]
+
+        lnp2p3[-1] = lnpu1p[-1]
+
+        qdwn[-1,:,:] = np.log(pthta[-1,:,:]/pmid[-1,None,None])*np.log(pthta[-1,:,:]/pup[-1,None,None])/lnp2p3[-1,None,None]/lnp1p3[-1,None,None]
+
+        qmid[-1,:,:] = -np.log(pthta[-1,:,:]/pdwn[-1,None,None])*np.log(pthta[-1,:,:]/pup[-1,None,None])/lnp2p3[-1,None,None]/lnp1p2[-1,None,None]
+
+        qup[-1,:,:] = np.log(pthta[-1,:,:]/pdwn[-1,None,None])*np.log(pthta[-1,:,:]/pmid[-1,None,None])/lnp1p3[-1,None,None]/lnp1p2[-1,None,None]
+        sthta[-1,:,:] = qdwn[-1,:,:]*sdwn[-1,:,:] + qmid[-1,:,:]*smid[-1,:,:] + qup[-1,:,:] *sup[-1,:,:]
+
+
+        
+        qdwn[1:,:,:] = np.log(pthta[1:,:,:]/pmid[1:,None,None])*np.log(pthta[1:,:,:]/pup[1:,None,None])/lnp2p3[1:,None,None]/lnp1p3[1:,None,None]
+
+        qmid[1:,:,:] = -np.log(pthta[1,:,:]/pdwn[1:,None,None])*np.log(pthta[1:,:,:]/pup[1:,None,None])/lnp2p3[1:,None,None]/lnp1p2[1:,None,None]
+
+        qup[1:,:,:] = np.log(pthta[1:,:,:]/pdwn[1:,None,None])*np.log(pthta[1:,:,:]/pmid[1:,None,None])/lnp1p3[1:,None,None]/lnp1p2[1:,None,None]
+        sthta[1:,:,:] = qdwn[1:,:,:]*sdwn[1:,:,:] + qmid[1:,:,:]*smid[1:,:,:] + qup[1:,:,:] *sup[1:,:,:]
+
         return sthta
      
