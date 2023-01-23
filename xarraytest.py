@@ -1,13 +1,14 @@
 import xarray as xr
 import numpy as np
 import dask
+from dask import delayed
 import datetime
 import sys
 
 def main():
 
-    ret = setUpData()
-    executeCalc(ret)
+    tmp,pres = setUpData()
+    executeCalc(tmp,17,73,144,pres)
     
 def setUpData():
     
@@ -26,32 +27,20 @@ def setUpData():
     ds = xr.Dataset(data_vars={'temperature':temp})
     ds.to_netcdf('testxarray.nc')
     ds1 = xr.open_dataset('testxarray.nc',chunks={'time':1})
-    print(ds1)
     tmp = ds.temperature.values
-    ret = []
-    ret.append(lat)
-    ret.append(lon)
-    ret.append(level)
-    ret.append(tmp)
-    return ret
+    return tmp,level
 
-def executeCalc(ret):
-    lat,lon,level,tmp = ret
+def executeCalc(tmp,lenlevel,lenlat,lenlon,pres):
+    potempList = []
     for i in range (0,tmp.shape[0]):
         tmpInstant = tmp[i,:,:,:]
-        potemp = pot(tmpInstant,lat,lon,level)
-        
-def pot(tmp,lat,lon,pres):
-    cp = 1004.0
-    md = 28.9644
-    R = 8314.41
-    Rd = R/md
-    nlat = len(lat)
-    nlon = len(lon)
-    nlevel = len(pres)
-    potemp = np.zeros((nlevel,nlat,nlon))
-    potemp = tmp * (100000./pres[:,None,None]) ** (Rd/cp)
+        potempList.append(delayed(pot)(tmpInstant,lenlevel,lenlat,lenlon,pres))
 
+    results = dask.compute(potempList)
+                          
+def pot(tmp,nlev,lat,lon,pres):
+    potemp = np.zeros((17,73,144))
+    potemp = tmp * (100000./pres[:,None,None])
     return potemp
     
 main()
