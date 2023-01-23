@@ -2,11 +2,16 @@ import xarray as xr
 import numpy as np
 import dask
 from dask import delayed
+
+
 import datetime
 import sys
 
 def main():
-
+    
+    if __name__ == "__main__":
+        from dask.distributed import Client
+    client = Client()
     tmp,pres = setUpData()
     executeCalc(tmp,17,73,144,pres)
     
