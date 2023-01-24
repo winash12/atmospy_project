@@ -2,18 +2,19 @@ import xarray as xr
 import numpy as np
 import dask
 from dask import delayed
-
-
+from dask.distributed import Client
 import datetime
-import sys
-
+import time
 def main():
     
     if __name__ == "__main__":
-        from dask.distributed import Client
-    client = Client()
-    tmp,pres = setUpData()
-    executeCalc(tmp,17,73,144,pres)
+
+        client = Client()
+        tmp,pres = setUpData()
+        startTime = time.time()
+        executeCalc(tmp,17,73,144,pres)
+        stopTime = time.time()
+        print(stopTime-startTime)
     
 def setUpData():
     
@@ -40,8 +41,8 @@ def executeCalc(tmp,lenlevel,lenlat,lenlon,pres):
     for i in range (0,tmp.shape[0]):
         tmpInstant = tmp[i,:,:,:]
         potempList.append(delayed(pot)(tmpInstant,lenlevel,lenlat,lenlon,pres))
-
-    results = dask.compute(potempList)
+        
+    results = dask.compute(potempList,scheduler='processes',num_workers=4)
                           
 def pot(tmp,nlev,lat,lon,pres):
     potemp = np.zeros((17,73,144))
