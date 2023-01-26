@@ -31,39 +31,6 @@ class potential_vorticity:
         dsdx1 = np.zeros((73,144))
         dsdx1[:, 1:-1] = -999.99
         dsdx1[:, 1:-1] = np.where(has_right & has_value, (s[:,2:] - s[:,1:-1]) / di, dsdx1[:, 1:-1])
-        dsdx1[:, 1:-1] = np.where(has_left & has_value, (s[:,1:-1] - s[:,:-2]) / di, dsdx1[:, 1:-1])
-        dsdx1[:, 1:-1] = np.where(has_left & has_right, (s[:,2:] - s[:,:-2]) / (2. * di), dsdx1[:, 1:-1])
-
-
-        hasValue = s[1:-1,0] > -999.99
-        hasRight = s[1:-1,-1] > -999.99
-        hasLeft = s[1:-1,1] > -999.99
-        hasRight2 = s[1:-1,-2] > -999.99
-        
-
-
-        if (np.allclose(2*lon[0]-lon[-1],lon[1],1e-3) or np.allclose(2*lon[0]-lon[-1],lon[1] + 360.0,1e-3)):
-            dsdx1[1:-1,0] = -999.99
-            dsdx1[1:-1,-1] = -999.99
-            dsdx1[1:-1,0] = np.where(hasRight & hasValue,(s[1:-1,-1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
-            dsdx1[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
-            dsdx1[1:-1,0] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) /2. * di, dsdx1[1:-1, 0])
-            dsdx1[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx1[1:-1, -1])
-            dsdx1[1:-1,-1] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) / di, dsdx1[1:-1, -1])
-            dsdx1[1:-1,-1] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /2. * di, dsdx1[1:-1, -1])
-        elif (np.allclose(lon[0],lon[-1],1e-3)):
-            dsdx1[1:-1,0] = -999.99
-            dsdx1[1:-1,-1] = -999.99
-            dsdx1[1:-1,0] = np.where(hasLeft & hasRight2,(s[1:-1,1] - s[1:-1,-2]) / 2. *di, dsdx1[1:-1, 0])
-            dsdx1[1:-1,0] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /di, dsdx1[1:-1, 0])
-            dsdx1[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
-        else:
-            dsdx1[1:-1,0] = -999.99
-            dsdx1[1:-1,-1] = -999.99
-            dsdx1[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx1[1:-1, 0])
-            dsdx1[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx1[1:-1, -1])
-
-        return dsdx
 
     def ddy(self,s,lat,lon):
         lonLen = len(lon)
@@ -97,65 +64,23 @@ class potential_vorticity:
         dsdy[1:-1,:] = np.where(has_left & has_right,(s[2:,:] - s[:-2,:])/(2.*dj),dsdy[1:-1,:])
 
         return dsdy
-
-        
-    def relvor(self,lat,lon,u,v,dvdx,dudy):
-        lonLen = len(lon)
-        latLen = len(lat)
-        rearth = 6371221.3
-        relv = np.empty((latLen,lonLen))
-        missing = 0
-        # Begin South Pole
-        uSouth = u[1,:]
-        uSouthMissing = (u[1,:] < -999.99).sum()
-        relv[0,:] = uSouth[uSouth > -999.99].sum()
-        sphericalCapFactor = math.cos(math.radians(lat[1]))/(1.-math.sin (math.radians(lat[1])))/rearth /float(lonLen-uSouthMissing)
-        relv[0,:] = relv[0,:]*sphericalCapFactor
-        
-        uNorth = u[-2,:]
-        uNorthMissing = (u[-2,:] < -999.99).sum()
-        relv[-1,:] = uNorth[uNorth > -999.99].sum()
-        sphericalCapFactor = math.cos(math.radians(lat[-2]))/(1.-math.sin (math.radians(lat[-2])))/rearth /float(lonLen-uNorthMissing)
-        relv[-1,:] = relv[-1,:]*sphericalCapFactor
-
-        hasNoU = u[1:-1,:] < -999.99
-        hasNoDvDx = dvdx[1:-1,:] < -999.99
-        hasNoDuDy = dudy[1:-1,:] < -999.99
-        
-
-        relv[1:-1,:] = np.where(hasNoU| hasNoDvDx |hasNoDuDy,-999.99,relv[1:-1,:])
-        
-        
-        relv[1:-1,:] = dvdx[1:-1,:]-dudy[1:-1,:]+(u[1:-1,:]*np.tan(np.radians(lat[1:-1,None])))/rearth
-        return relv
-
-    
-    def absvor(self,lat,lon,relv):
-
-        
-        lonLen = len(lon)
-        latLen = len(lat)
-        absv = np.empty((latLen,lonLen))
-        omega = 7.29212e-05
-        corl = np.empty((latLen))
-        corl = 2.0 * omega * np.sin(np.radians(lat))
-        corl = corl[:,None]
-        hasNoRelv = relv[:,:] < -999.99
-        absv = np.empty((latLen,lonLen))
-        absv = np.where(hasNoRelv,-999.99,absv[:,:])
-        absv  = relv + corl
-
-        return absv
-
     def pot(self,tmp,pres):
         cp = 1004.0
         md = 28.9644
         R = 8314.41
         Rd = R/md
+        pottemp = np.zeros_like(tmp)
+        pottemp = tmp * (100000./pres[:,None,None]) ** (Rd/cp)
+        return pottemp
 
-        pot = tmp * (100000./pres) ** (Rd/cp)
-
-        return pot
+    def potsfc(self,tsfc,psfc):
+        cp = 1004.0
+        md = 28.9644
+        R = 8314.41
+        Rd = R/md
+        pottemp = np.zeros_like(tsfc)
+        pottemp = tsfc * (100000./psfc) ** (Rd/cp)
+        return pottemp
     
     def pvonp(self,ni,nj,lat,lon,pres,pres1,pres2,tmp,tmp1,tmp2,u,u1,u2,v,v1,v2,missingData):
 
@@ -811,17 +736,20 @@ class potential_vorticity:
 
         # Calculate potential temperature at the surface. Keep track of lowest value.
         # Calculate potential temperature at the surface. Keep track of lowest value.
-        potsfc = self.pot(tsfc,psfc)
+        print(tsfc.shape,psfc.shape)
+
+        potsfc = self.potsfc(tsfc,psfc)
         thtalo = np.min(potsfc)
 
-        # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
 
-        thtahi = self.pot(tpres[9,0,0],plevs[9])
-        print(plevs[9])
+        # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
+        thtap = self.pot(tpres,plevs)
+
+        #thtahi = self.pot(tpres[9,0,0],plevs[9])
+        thtahi = thtap[9,0,0]
         for k in range(0,len(plevs)):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
-                    thtap[k,j,i] = self.pot(tpres[k,j,i],plevs[k])
                     if (psfc[j,i] > plevs[k]) :
                         if (k > 0):
                             if (psfc[j,i] < plevs[k-1]):
@@ -836,6 +764,7 @@ class potential_vorticity:
                         if (k >= 9 and thtap[k,j,i] > thtahi):
                             thtahi = thtap[k,j,i]
         # Identify isentropic levels to interpolate to
+
         kout = 0
         while (True):
             kout += 1
