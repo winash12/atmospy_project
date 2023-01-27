@@ -28,9 +28,39 @@ class potential_vorticity:
         has_left = s[:,:-2] > -999.99
         has_right = s[:,2:] > -999.99
         has_value = s[:,1:-1] > -999.99
-        dsdx1 = np.zeros((73,144))
-        dsdx1[:, 1:-1] = -999.99
-        dsdx1[:, 1:-1] = np.where(has_right & has_value, (s[:,2:] - s[:,1:-1]) / di, dsdx1[:, 1:-1])
+        dsdx = np.zeros((73,144))
+        dsdx[:, 1:-1] = -999.99
+        dsdx[:, 1:-1] = np.where(has_right & has_value, (s[:,2:] - s[:,1:-1]) / di, dsdx[:, 1:-1])
+        dsdx[:, 1:-1] = np.where(has_left & has_value, (s[:,1:-1] - s[:,:-2]) / di, dsdx[:, 1:-1])
+        dsdx[:, 1:-1] = np.where(has_left & has_right, (s[:,2:] - s[:,:-2]) / (2. * di), dsdx[:, 1:-1])
+        hasValue = s[1:-1,0] > -999.99
+        hasRight = s[1:-1,-1] > -999.99
+        hasLeft = s[1:-1,1] > -999.99
+        hasRight2 = s[1:-1,-2] > -999.99
+        
+        
+        
+        if (np.allclose(2*lon[0]-lon[-1],lon[1],1e-3) or np.allclose(2*lon[0]-lon[-1],lon[1] + 360.0,1e-3)):
+            dsdx[1:-1,0] = -999.99
+            dsdx[1:-1,-1] = -999.99
+            dsdx[1:-1,0] = np.where(hasRight & hasValue,(s[1:-1,-1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
+            dsdx[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
+            dsdx[1:-1,0] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) /2. * di, dsdx[1:-1, 0])
+            dsdx[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx[1:-1, -1])
+            dsdx[1:-1,-1] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) / di, dsdx[1:-1, -1])
+            dsdx[1:-1,-1] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /2. * di, dsdx[1:-1, -1])
+        elif (np.allclose(lon[0],lon[-1],1e-3)):
+            dsdx[1:-1,0] = -999.99
+            dsdx[1:-1,-1] = -999.99
+            dsdx[1:-1,0] = np.where(hasLeft & hasRight2,(s[1:-1,1] - s[1:-1,-2]) / 2. *di, dsdx[1:-1, 0])
+            dsdx[1:-1,0] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /di, dsdx[1:-1, 0])
+            dsdx[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
+        else:
+            dsdx[1:-1,0] = -999.99
+            dsdx[1:-1,-1] = -999.99
+            dsdx[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
+            dsdx[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx[1:-1, -1])
+            return dsdx
 
     def ddy(self,s,lat,lon):
         lonLen = len(lon)
@@ -736,7 +766,7 @@ class potential_vorticity:
 
         # Calculate potential temperature at the surface. Keep track of lowest value.
         # Calculate potential temperature at the surface. Keep track of lowest value.
-        print(tsfc.shape,psfc.shape)
+
 
         potsfc = self.potsfc(tsfc,psfc)
         thtalo = np.min(potsfc)
@@ -745,7 +775,7 @@ class potential_vorticity:
         # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
         thtap = self.pot(tpres,plevs)
 
-        #thtahi = self.pot(tpres[9,0,0],plevs[9])
+
         thtahi = thtap[9,0,0]
         for k in range(0,len(plevs)):
             for j in range(0,latLen):
