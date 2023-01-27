@@ -10,10 +10,9 @@
  #
   
 import numpy as np
-import shtns
 import matplotlib.pyplot as plt
 import time
-from spharm import Spharmt 
+from spharm import Spharmt
 import sys  
   
 def main():
@@ -27,9 +26,11 @@ def main():
      # requires matplotlib for plotting.
   
      # grid, time step info
-     nlons = 256                 # number of longitudes
+     #nlons = 256                 # number of longitudes
+     nlons = 144
      ntrunc = int(nlons/3)       # spectral truncation (for alias-free computations)
-     nlats = int(nlons/2)        # for gaussian grid.
+     #nlats = int(nlons/2)        # for gaussian grid.
+     nlats = 73
      dt = 150                    # time step in seconds
      itmax = 6*int(86400/dt)     # integration length in days
   
@@ -56,6 +57,7 @@ def main():
   
      # zonal jet.
      vg = np.zeros((nlats, nlons), np.float)
+
      u1 = (umax/en)*np.exp(1./((x.lats-phi0)*(x.lats-phi1)))
      ug = np.zeros((nlats), np.float)
      ug = np.where(np.logical_and(x.lats < phi1, x.lats > phi0), u1, ug)
@@ -66,23 +68,25 @@ def main():
   
      # initial vorticity, divergence in spectral space
      vrtspec, divspec = x.getvrtdivspec(ug, vg)
-     vrtg = x.spectogrd(vrtspec)
-     divg = x.spectogrd(divspec)
-  
+     print(vrtspec.shape,divspec.shape)
      # create hyperdiffusion factor
      hyperdiff_fact = np.exp((-dt/efold)*(x.lap/x.lap[-1])**(ndiss/2))
   
      # solve nonlinear balance eqn to get initial zonal geopotential,
      # add localized bump (not balanced).
      vrtg = x.spectogrd(vrtspec)
+
      tmpg1 = ug*(vrtg+f)
      tmpg2 = vg*(vrtg+f)
+     print(tmpg1.shape)
      tmpspec1, tmpspec2 = x.getvrtdivspec(tmpg1, tmpg2)
+     print(tmpspec1.shape)
      tmpspec2 = x.grdtospec(0.5*(ug**2+vg**2))
      phispec = x.invlap*tmpspec1 - tmpspec2
      phig = grav*(hbar + hbump) + x.spectogrd(phispec)
      phispec = x.grdtospec(phig)
-  
+
+
      # initialize spectral tendency arrays
      ddivdtspec = np.zeros(vrtspec.shape+(3,), np.complex)
      dvrtdtspec = np.zeros(vrtspec.shape+(3,), np.complex)
@@ -99,6 +103,7 @@ def main():
          vrtg = x.spectogrd(vrtspec)
          ug, vg = x.getuv(vrtspec, divspec)
          phig = x.spectogrd(phispec)
+         
          print("t=%6.2f hours: min/max %6.2f, %6.2f" % (t/3600., vg.min(), vg.max()))
   
          # compute tendencies.
