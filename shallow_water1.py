@@ -2,8 +2,6 @@
   
  #
  # "Non-linear barotropically unstable shallow water test case"
- # Example provided by Jeffrey Whitaker
- # https://gist.github.com/jswhit/3845307
  #
  # Running the script should pop up a window with this image:
  #  https://i.imgur.com/CEzHJ0g.png
