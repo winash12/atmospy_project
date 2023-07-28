@@ -94,6 +94,41 @@ class potential_vorticity:
         dsdy[1:-1,:] = np.where(has_left & has_right,(s[2:,:] - s[:-2,:])/(2.*dj),dsdy[1:-1,:])
 
         return dsdy
+
+    def relvor(self):
+        uSouth = u[1,:]
+        uSouthMissing = (u[1,:] < -999.99).sum()
+        relv[0,:] = uSouth[uSouth > -999.99].sum()
+        sphericalCapFactor = math.cos(math.radians(lat[1]))/(1.-math.sin (math.radians(lat[1])))/rearth /float(lonLen-uSouthMissing)
+        relv[0,:] = relv[0,:]*sphericalCapFactor
+
+        uNorth = u[-2,:]
+        uNorthMissing = (u[-2,:] < -999.99).sum()
+        relv[-1,:] = uNorth[uNorth > -999.99].sum()
+        sphericalCapFactor = math.cos(math.radians(lat[-2]))/(1.-math.sin (math.radians(lat[-2])))/rearth /float(lonLen-uNorthMissing)
+        relv[-1,:] = relv[-1,:]*sphericalCapFactor
+        hasNoU = u[1:-1,:] < -999.99
+        hasNoDvDx = dvdx[1:-1,:] < -999.99
+        hasNoDuDy = dudy[1:-1,:] < -999.99
+
+
+        relv[1:-1,:] = np.where(hasNoU| hasNoDvDx |hasNoDuDy,-999.99,relv[1:-1,:])
+
+
+        relv[1:-1,:] = dvdx[1:-1,:]-dudy[1:-1,:]+(u[1:-1,:]*np.tan(np.radians(lat[1:-1,None])))/rearth
+
+    def absvor(self,relv):
+
+        corl = np.empty((latLen))
+        corl = 2.0 * omega * np.sin(np.radians(lat))
+        corl = corl[:,None]
+        hasNoRelv = relv[:,:] < -999.99
+        absv = np.empty((latLen,lonLen))
+        absv = np.where(hasNoRelv,-999.99,absv[:,:])
+        absv  = relv + corl
+        return absv
+        
+        
     def pot(self,tmp,pres):
         cp = 1004.0
         md = 28.9644
