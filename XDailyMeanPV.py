@@ -148,20 +148,7 @@ def executeCalc(ds_pv):
     for i in range (0,len(lons)):
         if (lons[i] < 0.0):
             lons[i] += 360.0
-    #ipvPlot = np.empty((nj,ni))
-    #ipvPlot = ipvMean[11,:,:]
-    #uipvPlot = uipvMean[11,:,:]
-    #vipvPlot = vipvMean[11,:,:]
-    #print(ipvPlot.shape)
-            #s = Spharmt(len(lons),len(lats), gridtype='regular',
-            #                         rsphere=6.3712e6, legfunc='stored')
 
-    #ipv3d = np.expand_dims(ipvPlot,axis=2)
-    #print(ipv3d.shape)
-    #ipvZonal,ipvMeridional = s.getgrad(ipv3d)
-    #print(ipvZonal.shape,ipvMeridional.shape)
-    #print(ipvMeridional.shape)    
-    #sys.exit(
     ipvMeridional = pv.ddy(ipvMean,lats,lons)
 
 
