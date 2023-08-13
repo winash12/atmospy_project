@@ -16,18 +16,19 @@ import math
 import datetime
 import xarray as xr
 import re
+import time
 def main():
 
 
     cdo = Cdo()
 
-    cdo.remapbil("myGridDef",input="surface_temp_2023_10_1_00Z.nc",output="surface_temp_10_1_2023.nc")
-    cdo.remapbil("myGridDef",input="surface_uwnd_2023_10_1_00Z.nc",output="surface_uwnd_10_1_2023.nc")
-    cdo.remapbil("myGridDef",input="surface_vwnd_2023_10_1_00Z.nc",output="surface_vwnd_10_1_2023.nc")
+    cdo.remapbil("myGridDef",input="surface_temp_2023_10_8_00Z.nc",output="surface_temp_10_8_2023.nc")
+    cdo.remapbil("myGridDef",input="surface_uwnd_2023_10_8_00Z.nc",output="surface_uwnd_10_8_2023.nc")
+    cdo.remapbil("myGridDef",input="surface_vwnd_2023_10_8_00Z.nc",output="surface_vwnd_10_8_2023.nc")
 
 
-    
-    pv = potential_vorticity()
+    startTime = time.time()
+
     
     tmp_file_list = [ file for file in os.listdir('.') if file.startswith("air") ]
     uwnd_file_list = [ file for file in os.listdir('.') if file.startswith("uwnd") ]
@@ -53,21 +54,30 @@ def main():
     cdo.merge(input=" ".join(([fileVwndDictionary[key] for key in sorted(fileVwndDictionary,reverse=True)])), output='vwndFile.nc')
 
 
-    cdo.merge(input=" ".join(('tmpFile.nc','uwndFile.nc','vwndFile.nc','surface_temp_10_1_2023.nc','pres_sfc_2023_10_1_00Z.nc','surface_uwnd_10_1_2023.nc','surface_vwnd_10_1_2023.nc')),output='pvFile.nc')
+    cdo.merge(input=" ".join(('tmpFile.nc','uwndFile.nc','vwndFile.nc','surface_temp_10_8_2023.nc','pres_sfc_2023_10_8_00Z.nc','surface_uwnd_10_8_2023.nc','surface_vwnd_10_8_2023.nc')),output='pvFile.nc')
 
+    if __name__ == "__main__":
+        #client = Client()
+        ds_pv = openFile()
+        executeCalc(ds_pv)
+        
+def openFile():
+            
     ds_pv = xr.open_mfdataset("pvFile.nc",chunks={'time':1})
     print(ds_pv)
+    return ds_pv
 
+def executeCalc(ds_pv):
     levels = ds_pv.coords['level'].values
     plevs = np.array(levels)
     plevs = plevs*100
     print(plevs)
-
+    
     ipvArgs = []
     uArgs = []
-
-    vArgs= []
     
+    vArgs= []
+    pv = potential_vorticity()    
     tmp = ds_pv.air.values
     tsfc = ds_pv.air_2.values
     psfc = ds_pv.pres.values
@@ -75,23 +85,23 @@ def main():
     vwnd = ds_pv.vwnd_2.values
     u = ds_pv.uwnd.values
     v = ds_pv.vwnd.values
-
+    
     lats = ds_pv.coords['lat'].values
     lons = ds_pv.coords['lon'].values
     dates  = ds_pv.time.values
-    
-    dates = dates.astype(str)
 
+    dates = dates.astype(str)
+    
     dates=np.array(list(map(lambda v:re.sub('T',' ',v),dates)))
     dates=np.array(list(map(lambda v:re.sub('\.[0]+',' ',v),dates)))
     print(dates)
-
+    
     dateMean = ds_pv.time.mean()
     dateMean = (dateMean.values)
     dateMean = np.datetime_as_string(dateMean)
     dateMean = re.sub('T0',' ',dateMean)
     dateMean = re.sub('\.[0]+',' ',dateMean)
-
+    
     missingData = -999.99
     for i in range(0,tmp.shape[0]):
 
@@ -161,6 +171,9 @@ def main():
 
 
     plotIPV(lats,lons,ipvMean,uipvMean,vipvMean,ipvMeridional,dateMean,temp=360)
+    stopTime = time.time()
+    print(stopTime-startTime)
+    
 def plotIPV(lats,lons,ipvPlot,uipvPlot,vipvPlot,ipvMeridional,date,temp):
 
     uipvPlot = uipvPlot[::3,::3]
