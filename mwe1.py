@@ -5,7 +5,7 @@ import boto3
 import metpy.calc as mpcalc
 from botocore import UNSIGNED
 from botocore.config import Config
-
+import sys
 
 if (not os.path.isfile('gfs.t12z.pgrb2.0p50.f000')):
 
@@ -36,6 +36,9 @@ dx = np.abs(dx)
 dy = np.abs(dy)
 
 upsi = xr.zeros_like(vortmask)
+print(upsi.shape)
+
+
 vpsi = xr.zeros_like(vortmask)
 uchi = xr.zeros_like(divmask)
 vchi = xr.zeros_like(divmask)
@@ -81,3 +84,7 @@ for i in range(x_ll_subset, x_ur_subset):
 
 
 
+upsi[:,:] = (1/(2*np.pi)) * upsi[:,:]
+vpsi[:,:] = (1/(2*np.pi)) * vpsi[:,:]
+#uchi[:,:] = (1/(2*np.pi)) * uchi[:,:]
+#vchi[:,:] = (1/(2*np.pi)) * vchi[:,:]
