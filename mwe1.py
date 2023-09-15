@@ -79,8 +79,8 @@ for i in range(x_ll_subset, x_ur_subset):
 
         iindex = i
         jindex = j
-        xdiff = (i(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)-xindex(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset))*dx(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)
-        ydiff = (j(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)-yindex(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset))*dy(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)
+        xdiff = (iindex(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)-xindex(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset))*dx(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)
+        ydiff = (jindex(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)-yindex(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset))*dy(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)
         rsq = (xdiff*xdiff) + (ydiff*ydiff)
         upsi[j,i] = np.where(rsq > 0, vortmask(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)*-1.0*(ydiff/rsq)*dx(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)*dy(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset), 0.0).sum()
         vpsi[j,i] = np.where(rsq > 0, vortmask(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)*-1.0*(xdiff/rsq)*dx(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset)*dy(y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset), 0.0).sum()
