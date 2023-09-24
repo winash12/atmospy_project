@@ -36,11 +36,11 @@ dx, dy = mpcalc.lat_lon_grid_deltas(vortmask.longitude, vortmask.latitude)
 
 
 upsi = xr.zeros_like(vortmask)
-print(upsi.shape)
+#print(upsi.shape)
 
 
 vpsi = xr.zeros_like(vortmask)
-print(vpsi.shape)
+#print(vpsi.shape)
 uchi = xr.zeros_like(divmask)
 vchi = xr.zeros_like(divmask)
 x_ll = list(vortmask.longitude.values).index(191.0)
@@ -68,24 +68,44 @@ y = np.abs(y_ll-y_ur)
 xstart = np.linspace(x_ll,x_ur,num = x,endpoint=False,dtype=np.int32)
 ystart = np.linspace(y_ll,y_ur,num=y,endpoint=False,dtype=np.int32)
 
+
 xindex,yindex = np.meshgrid(xstart,ystart)
 
-iindex = np.zeros((x,y))
-jindex = np.zeros((x,y))
+#xindex = np.transpose(xindex)
+#yindex = np.transpose(yindex)
 
+
+iindex = np.zeros((y,x))
+jindex = np.zeros((y,x))
+
+
+dx = dx.magnitude
+print(dx.shape)
+dy = dy.magnitude
 for i in range(x_ll_subset, x_ur_subset):
 
     for j in range(y_ur_subset, y_ll_subset): 
 
         iindex[:,:] = i
         jindex[:,:] = j
-        xdiff = (iindex[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]-xindex[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset])*dx[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]
-        ydiff = (jindex[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]-yindex[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset])*dy[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]
+        xdiff = (iindex-xindex)*dx[y_ur:y_ll,x_ll:x_ur]
+        ydiff = (jindex-yindex)*dy[y_ur:y_ll,x_ll:x_ur]
         rsq = (xdiff*xdiff) + (ydiff*ydiff)
-        upsi[j,i] = np.where(rsq > 0, vortmask[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*-1.0*(ydiff/rsq)*dx[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*dy[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset], 0.0).sum()
-        vpsi[j,i] = np.where(rsq > 0, vortmask[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*-1.0*(xdiff/rsq)*dx[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*dy[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset], 0.0).sum()
-        
-                #   xdiff = (i-x1)*dx[y1,x1].magnitude
+        #upsi[j,i] = np.where(rsq > 0, vortmask[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*-1.0*(ydiff/rsq)*dx[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*dy[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset], 0.0).sum()
+        #vpsi[j,i] = np.where(rsq > 0, vortmask[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*-1.0*(xdiff/rsq)*dx[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset]*dy[y_ur_subset:y_ll_subset,x_ll_subset:x_ur_subset], 0.0).sum()
+sys.exit()
+
+
+ie=360
+xdiff1 = np.zeros((x,y))
+for x1 in range(0, x):
+    for y1 in range(0, y):
+        xdiff1[x1,y1] = ie-xstart[x1]
+print(np.array_equal(xdiff,xdiff1))
+sys.exit()    
+
+
+        #   xdiff = (i-x1)*dx[y1,x1].magnitude
                  #   ydiff = (j-y1)*dy[y1,x1].magnitude
                   #  rsq = (xdiff*xdiff) + (ydiff*ydiff)
                 # Compute the non-divergent flow contribution.
