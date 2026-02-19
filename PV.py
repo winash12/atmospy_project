@@ -10,8 +10,8 @@ import scipy.ndimage as ndimage
 from windspharm.standard import VectorWind
 from windspharm.tools import prep_data, recover_data, order_latdim
 from decimal import *
-import f23_engine
 import interp_lib
+import weather_lib
 import traceback
 from numpy.testing import assert_allclose
 
@@ -453,7 +453,7 @@ class potential_vorticity:
         stability = dth / dpi
         vorcor = (dvdp * dpotdx) - (dudp * dpotdy)
         
-  # PV = -g * (Absolute_Vorticity * Stability - Tilt_Terms)
+        # PV = -g * (Absolute_Vorticity * Stability - Tilt_Terms)
         # Scaled by 10^6 for standard PV Units (PVU)
         pv = -self.gravity.m * (absv * stability - vorcor) * 1e6
 
@@ -517,7 +517,26 @@ class potential_vorticity:
         kappa = 2./7.
         gravity = 9.80665
 
+        
 
+        is_finite_u = np.isfinite(uthta).all()
+        is_finite_v = np.isfinite(vthta).all()
+        
+        if not (is_finite_u and is_finite_v):
+            print("!!! Found issues in the 18Z slice !!!")
+            
+            # Check for NaNs (Holes in the grid)
+            print(f"  NaNs in U: {np.isnan(uthta).sum()}")
+            
+            # Check for Infs (Divide-by-zero results)
+            print(f"  Infs in U: {np.isinf(uthta).sum()}")
+            
+            # Identify which of the 16 levels are broken
+            for i in range(16):
+                if not np.isfinite(uthta[i]).all():
+                    print(f"  Level index {i} contains invalid values.")
+
+        
         args = []
         for uthta2d,vthta2d in zip(uthta,vthta):
             w = VectorWind(uthta2d,vthta2d)
@@ -869,21 +888,14 @@ class potential_vorticity:
     def tests2thta(self,lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta):
         
 
+        plevs_final = np.asfortranarray(plevs.T, dtype=np.float64)  # .T is shorthand for transpose(1,0)
         psfc_final  = np.asfortranarray(psfc.T, dtype=np.float64)  # .T is shorthand for transpose(1,0)
         ssfc_final  = np.asfortranarray(uwndI.T, dtype=np.float64) 
         
         # For 3D: (Levels, Lat, Lon) -> (Lon, Lat, Levels)
         spres_final = np.asfortranarray(np.transpose(uins, (2, 1, 0)), dtype=np.float64)
         pthta_final = np.asfortranarray(np.transpose(pthta, (2, 1, 0)), dtype=np.float64)
-        thta_final  = np.asfortranarray(thta, dtype=np.float64)
-
-
-
         
-        print("the shape of spres")
-        print(spres_final.shape)
-        print(pthta_final.shape)
-        print(kthta)
 
         
         sthta_old_full = interp_lib.s2thta_old(
@@ -893,177 +905,47 @@ class potential_vorticity:
             pthta_final
         )
 
+        sthta_new_full = weather_lib.s2thta_vector(
+            plevs_final,
+            ssfc_final,
+            psfc_final,
+            spres_final,
+            pthta_final
+        )
+
+        
         sthta_f77 = np.transpose(sthta_old_full[:, :, :], (2, 1, 0))
         sthta_f77 = np.ascontiguousarray(sthta_f77)
 
-        sthta_numpy = self.s2thta_netcdf_numpy(uins, pthta, psfc, uwndI)
+        sthta_f23 = np.transpose(sthta_new_full[:, :, :], (2, 1, 0))
+        sthta_f23 = np.ascontiguousarray(sthta_f23)
+
+        
+        sthta_numpy = self.s2thta(plevs,uins, pthta, psfc, uwndI)
 
         mea = np.mean(np.abs(sthta_numpy - sthta_f77))
         
         print(f"Mean Absolute Error: {mea} m/s")
-        sys.exit()
-        latLen = len(lats)
-        lonLen = len(lons)
-        for k in range(5):
-            for j in range(0,latLen):
-                for i in range(0,lonLen):
-                    print(sthta_numpy[k,j,i]-sthta_f77[k,j,i])
-        sys.exit()
 
-
-    
-
-    def s2thta(self,lats,lons,pres,kthta,ssfc,psfc,spres,thta,pthta):
-
-        plvls = len(pres)
-        latLen = len(lats)
-        lonLen = len(lons)
-        sthta = np.zeros((kthta,latLen,lonLen))
-        lnpu1p = np.zeros((plvls-1))
-        lnpu2p = np.zeros((plvls-2))
+        mea1 = np.mean(np.abs(sthta_f23-sthta_numpy))
 
         
-        np.seterr(all='warn')
-        warnings.filterwarnings('error')
+        print(f"Mean Absolute Error: {mea1} m/s")
+        sys.exit()
 
-
-        #lnpu1p[0:-1] = np.log(pres[1:-1]/pres[0:-2])
-        #lnpu2p[0:] = np.log(pres[1:]/pres[:-2])
-        #lnpu1p[-1] = np.log(pres[-1]/pres[-2])
-        lnpu1p = np.log(pres[1:] / pres[:-1]) # ln(P_k+1 / P_k)
-        lnpu2p = np.log(pres[2:] / pres[:-2]) # ln(P_k+2 / P_k)
-
-        for kout in range(0,kthta):
-            for j in range(0,latLen):
-                for i in range(0,lonLen):
-                    if(pthta[kout,j,i] <= 0.):
-                        sthta[kout,j,i] = -999.99
-                    elif (np.allclose(abs(pthta[kout,j,i]-psfc[j,i]),0.001)):
-                        sthta[kout,j,i] = ssfc[j,i]
-                    else:
-                        kin = 0
-                        looping = True
-                        matched_exactly = False
-                        pdwn = pmid = pup = sdwn = smid = sup = 0.0
-                        lnp1p2 = lnp1p3 = lnp2p3 = 1.0
-                        while (looping and kin < plvls):
-                            if (abs(pthta[kout,j,i]-pres[kin]) < 0.001):
-                                sthta[kout,j,i] = spres[kin,j,i]
-                                matched_exactly = True
-                                looping= False
-                                break
-                            elif (pthta[kout,j,i] > pres[kin]):
-
-                                if (kin == 0):
-                                    pdwn = psfc[j,i]
-                                    sdwn = ssfc[j,i]
-                                    #print(kin)
-                                    if (abs(psfc[j,i]-pres[kin]) < 0.001):
-                                        pmid = pres[kin]
-                                        pup = pres[kin+1]
-                                        smid = spres[kin,j,i]
-                                        sup = spres[kin+1,j,i]
-                                        lnp1p2 = np.float64(lnpu1p[kin])
-                                        lnp1p3 = np.float64(math.log(pup/pdwn))
-                                        if (pmid == pdwn):
-                                            pmid += 1e-12
-                                        try:
-                                            lnp2p3 = np.float64(math.log(pmid/pdwn))
-                                        except Warning:
-                                            print(lnp2p3)
-                                            print(traceback.format_exc())
-                                            #print(pmid,pup)
-                                    else:
-                                        pmid = pres[kin+1]
-                                        pup = pres[kin+2]
-                                        smid = spres[kin+1,j,i]
-                                        sup = spres[kin+2,j,i]
-                                        lnp1p2 = np.float64(lnpu1p[kin+1])
-                                        lnp1p3 = np.float64(lnpu2p[kin])
-                                        lnp2p3 = np.float64(lnpu1p[kin])
-                                        #print(pmid,pup,smid,sup)
-                                elif (kin == plvls-1):
-                                    pdwn = pres[kin-2]
-                                    pmid = pres[kin-1]
-                                    pup = pres[kin]
-                                    sdwn = spres[kin-2,j,i]
-                                    smid = spres[kin-1,j,i]
-                                    sup = spres[kin,j,i]
-                                    lnp1p2 = np.float64(lnpu1p[kin-1])
-                                    lnp1p3 = np.float64(lnpu2p[kin-2])
-                                    lnp2p3 = np.float64(lnpu1p[kin-2])
-                                elif (psfc[j,i] < pres[kin-1]):
-                                    pdwn = psfc[j,i]
-                                    sdwn = ssfc[j,i]
-                                    if (abs(psfc[j,i] -pres[kin]) > 0.001):
-                                        pmid = pres[kin]
-                                        pup =  pres[kin+1]
-                                        smid = spres[kin,j,i]
-                                        sup = spres[kin+1,j,i]
-                                        lnp1p2 = np.float64(lnpu1p[kin])
-                                        if (pmid == pdwn):
-                                            pmid += 1e-12
-                                        if (pup == pdwn):
-                                            pup += 1e-12
-                                        if (pup == pmid):
-                                            pup += 1e-12
-                                        lnp1p3 = np.float64(math.log(pup/pdwn))
-                                        lnp2p3 = np.float64(math.log(pmid/pdwn))
-                                    else:
-                                        pmid = pres[kin+1]
-                                        pup = pres[kin+2]
-                                        smid = spres[kin+1,j,i]
-                                        sup = spres[kin+2,j,i]
-                                        lnp1p2 = np.float64(lnpu1p[kin+1])
-                                        lnp1p3 = np.float64(lnpu2p[kin])
-                                        lnp2p3 = np.float64(lnpu1p[kin])
-                                else:
-                                    pdwn = pres[kin-1]
-
-                                    pmid = pres[kin]
-                                    pup =  pres[kin+1]
-                                    if pmid == pdwn: pmid += 1e-12
-                                    if pup == pmid:  pup += 1e-12
-                                    if pup == pdwn:  pup += 1e-12
-                                    sdwn = spres[kin-1,j,i]
-                                    smid = spres[kin,j,i]
-                                    sup = spres[kin+1,j,i]
-                                    lnp1p2 = np.float64(lnpu1p[kin])
-                                    lnp1p3 = np.float64(lnpu2p[kin-1])
-                                    lnp2p3 = np.float64(lnpu1p[kin-1])
-                                looping = False
-                                break
-                            kin +=1
-                    if (not matched_exactly  and not looping):
-                        try:
-                            qdwn = math.log(pthta[kout,j,i]/pmid)*math.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p3
-                            qmid = -math.log(pthta[kout,j,i]/pdwn)*math.log(pthta[kout,j,i]/pup)/lnp2p3/lnp1p2
-                            qup = math.log(pthta[kout,j,i]/pdwn)*math.log(pthta[kout,j,i]/pmid)/lnp1p3/lnp1p2
-                            sthta[kout,j,i] = qdwn*sdwn + qmid*smid + qup *sup
-                        except Warning:
-                            print(pup,pmid,lnp1p3,lnp2p3)
-                            exc_type, exc_obj, exc_tb = sys.exc_info()
-                            print(exc_type, exc_tb.tb_lineno)
-                            print(traceback.format_exc())
-
-        return sthta
 
 
 
     
 
     
-    def s2thta_netcdf_numpy(self,spres, pthta, psfc, ssfc):
+    def s2thta(self,plevs,spres, pthta, psfc, ssfc):
         # Dimensions: (KOUT, NJ, NI) = (16, 73, 144)
         kout, nj, ni = pthta.shape
-        plvls = 17
+        plvls = plevs.size
         tol = 0.01
-        
-        # YOUR DATA STATEMENT
-        pres = np.array([100000.0, 92500.0, 85000.0, 70000.0, 60000.0, 50000.0, 
-                         40000.0, 30000.0, 25000.0, 20000.0, 15000.0, 10000.0, 
-                         7000.0, 5000.0, 3000.0, 2000.0, 1000.0], dtype=np.float64)
-        
+
+        pres = np.float64(plevs)
         # YOUR LNPU INITIALIZATION
         lnpu1p = np.log(pres[1:] / pres[:-1]) 
         lnpu2p = np.log(pres[2:] / pres[:-2])
@@ -1112,8 +994,19 @@ class potential_vorticity:
                 smid[active] = np.where(c1_3d, spres[k,:,:][None,:,:],   spres[k+1,:,:][None,:,:])[active]
                 sup[active]  = np.where(c1_3d, spres[k+1,:,:][None,:,:], spres[k+2,:,:][None,:,:])[active]
                 l12[active] = np.where(c1_3d, lnpu1p[k], lnpu1p[k+1])[active]
-                l13[active] = np.where(c1_3d, np.log(pup/pdwn), lnpu2p[k])[active]
-                l23[active] = np.where(c1_3d, np.log(pmid/pdwn), lnpu1p[k])[active]
+
+                safe_ratio = np.divide(pup, pdwn, where=(pdwn != 0), out=np.ones_like(pup))
+
+                # 2. Calculate the log ONLY where the ratio is positive and pdwn was safe
+                safe_log = np.log(safe_ratio, where=(safe_ratio > 0), out=np.zeros_like(pup))
+
+                l13[active] = np.where(c1_3d, safe_log, lnpu2p[k])[active]
+                safe_ratio_23 = np.divide(pmid, pdwn, where=(pdwn > 0), out=np.ones_like(pmid))
+
+                # 2. Safely calculate the Log
+                # 'where' ensures we only calculate the log on positive, safe ratios
+                safe_log_23 = np.log(safe_ratio_23, where=(safe_ratio_23 > 0), out=np.zeros_like(pmid))
+                l23[active] = np.where(c1_3d, safe_log_23, lnpu1p[k])[active]
 
             # BRANCH 2: Top
             elif k == plvls - 1:
@@ -1134,8 +1027,19 @@ class potential_vorticity:
                     smid[m_psfc] = np.where(c3_3d, spres[k,:,:][None,:,:],   spres[k+1,:,:][None,:,:])[m_psfc]
                     sup[m_psfc]  = np.where(c3_3d, spres[k+1,:,:][None,:,:], spres[k+2,:,:][None,:,:])[m_psfc]
                     l12[m_psfc] = np.where(c3_3d, lnpu1p[k], lnpu1p[k+1])[m_psfc]
-                    l13[m_psfc] = np.where(c3_3d, np.log(pup/pdwn), lnpu2p[k])[m_psfc]
-                    l23[m_psfc] = np.where(c3_3d, np.log(pmid/pdwn), lnpu1p[k])[m_psfc]
+                    safe_ratio_sfc = np.divide(pup, pdwn, where=(pdwn > 0), out=np.ones_like(pup))
+
+                    # 2. The Safe Log: Only execute on positive, non-zero results
+                    # out=0.0 handles any remaining invalid indices gracefully
+                    safe_log_sfc = np.log(safe_ratio_sfc, where=(safe_ratio_sfc > 0), out=np.zeros_like(pup))
+                    l13[m_psfc] = np.where(c3_3d, safe_log_sfc, lnpu2p[k])[m_psfc]
+                    safe_ratio_23_sfc = np.divide(pmid, pdwn, where=(pdwn > 0), out=np.ones_like(pmid))
+
+                    # 2. The Safe Log: Only execute on positive, non-zero results
+                    # out=0.0 handles any remaining invalid indices gracefully
+                    safe_log_23_sfc = np.log(safe_ratio_23_sfc, where=(safe_ratio_23_sfc > 0), out=np.zeros_like(pmid))
+
+                    l23[m_psfc] = np.where(c3_3d, safe_log_23_sfc, lnpu1p[k])[m_psfc]
                     
                 if np.any(m_gen):
                     pdwn[m_gen], pmid[m_gen], pup[m_gen] = pres[k-1], pres[k], pres[k+1]
@@ -1151,9 +1055,15 @@ class potential_vorticity:
                 qmid = np.zeros_like(pthta)
                 qup = np.zeros_like(pthta)
                 
-                qdwn = np.log(pthta/pmid) * np.log(pthta/pup) / (l23 * l13)
-                qmid = -np.log(pthta/pdwn) * np.log(pthta/pup) / (l23 * l12)
-                qup  = np.log(pthta/pdwn) * np.log(pthta/pmid) / (l13 * l12)
+                #qdwn = np.log(pthta/pmid) * np.log(pthta/pup) / (l23 * l13)
+                qdwn = np.divide(np.log(pthta/pmid) * np.log(pthta/pup), (l23 * l13), 
+                                 where=safe_denom, out=np.zeros_like(pthta))
+                #qmid = -np.log(pthta/pdwn) * np.log(pthta/pup) / (l23 * l12)
+                qmid = np.divide(-np.log(pthta/pdwn) * np.log(pthta/pup), (l23 * l12),
+                                 where=safe_denom, out=np.zeros_like(pthta))
+                #qup  = np.log(pthta/pdwn) * np.log(pthta/pmid) / (l13 * l12)
+                qup  = np.divide(np.log(pthta/pdwn) * np.log(pthta/pmid), (l13 * l12),
+                                 where=safe_denom, out=np.zeros_like(pthta))
                 sthta[active] = qdwn[active]*sdwn[active] + qmid[active]*smid[active] + qup[active]*sup[active]
                 done[active] = True
 
