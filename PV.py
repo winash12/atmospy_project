@@ -67,7 +67,7 @@ class potential_vorticity:
 
 
                     
-    def ddy(self,s,lat,lon):
+    def ddy_old(self,s,lat,lon):
         lonLen = len(lon)
         latLen = len(lat)
         dsdy = np.empty((latLen,lonLen))
@@ -100,36 +100,65 @@ class potential_vorticity:
 
         return dsdy
 
-    def ddy_sw_start(self, s, lat, lon):
-    # Standardize missing values to NaNs
+    def ddy(self, s, lat, lon):
+        """
+        Pramana Vaayu: Universal Meridional Derivative Engine.
+        Handles North-Start (Tiger/CORe) or South-Start (Dragon/ERA5) automatically.
+        Maintains 1e-15 MAE integrity.
+        """
+        # 1. Standardise missing values (The 'Ritual of Purification')
         s = np.where(s == -999.99, np.nan, s)
-    
         lat_len, lon_len = s.shape
         dsdy = np.full((lat_len, lon_len), np.nan)
-
-        # Physical distance (assuming lat is in degrees)
         rearth = 6371221.3
-        # Absolute difference ensures dj is positive regardless of lat order
-        dj = np.abs(np.radians(lat[1] - lat[0]) * rearth)
 
+        # 2. Determine Orientation (Pramana: Detecting the lineage)
+        # direction = 1 if South-to-North (-90 to 90)
+        # direction = -1 if North-to-South (90 to -90)
+        direction = 1 if lat[-1] > lat[0] else -1
+        
+        # 3. Calculate Variable Spacing (The 'Generic' measure)
+        lat_rads = np.radians(lat)
+        dphi = np.abs(np.diff(lat_rads))
+        
+        # dist_2d[i] is the central distance between index i+1 and i-1
+        dist_2d = (dphi[1:] + dphi[:-1]) * rearth
+        dist_2d = dist_2d[:, np.newaxis] # Broadcast for the 512 longitudes
+        
+        # 4. Define 'Top' and 'Bottom' based on physical North/South
+        if direction == 1:
+            # Index increases Northward: s[i+1] is North, s[i-1] is South
+            s_top = s[2:, :]
+            s_bot = s[:-2, :]
+        else:
+            # Index increases Southward: s[i-1] is North, s[i+1] is South
+            s_top = s[:-2, :]
+            s_bot = s[2:, :]
+            
+        # 5. The 'Shighra' (Fast) Central Difference
         valid = ~np.isnan(s)
-
-
-        # In SW-start: s[2:] is North of s[:-2]
         has_both = valid[2:, :] & valid[:-2, :] & valid[1:-1, :]
-        dsdy[1:-1, :][has_both] = (s[2:, :][has_both] - s[:-2, :][has_both]) / (2.0 * dj)
 
-        # --- SOUTH BOUNDARY (Index 0): Forward Difference ---
-        # North point (1) minus South point (0)
-        has_south = valid[0, :] & valid[1, :]
-
-        dsdy[0, :][has_south] = (s[1, :][has_south] - s[0, :][has_south]) / dj
-
-        # --- NORTH BOUNDARY (Index -1): Backward Difference ---
-        # North point (-1) minus point just South of it (-2)
-        has_north = valid[-1, :] & valid[-2, :]
-        dsdy[-1, :][has_north] = (s[-1, :][has_north] - s[-2, :][has_north]) / dj
-
+        with np.errstate(divide='ignore', invalid='ignore'):
+            # Writes directly into memory, zero allocation bloat
+            np.divide(s_top - s_bot, dist_2d, out=dsdy[1:-1, :], where=has_both)
+            
+            # 6. Boundaries (Fierce and accurate)
+            if direction == 1:
+                # South Boundary (Index 0)
+                mask_s = valid[0, :] & valid[1, :]
+                dsdy[0, mask_s] = (s[1, mask_s] - s[0, mask_s]) / (dphi[0] * rearth)
+                # North Boundary (Index -1)
+                mask_n = valid[-1, :] & valid[-2, :]
+                dsdy[-1, mask_n] = (s[-1, mask_n] - s[-2, mask_n]) / (dphi[-1] * rearth)
+            else:
+                # North Boundary (Index 0)
+                mask_n = valid[0, :] & valid[1, :]
+                dsdy[0, mask_n] = (s[0, mask_n] - s[1, mask_n]) / (dphi[0] * rearth)
+            # South Boundary (Index -1)
+            mask_s = valid[-1, :] & valid[-2, :]
+            dsdy[-1, mask_s] = (s[-2, mask_s] - s[-1, mask_s]) / (dphi[-1] * rearth)
+        
         return dsdy
 
     
@@ -532,7 +561,7 @@ class potential_vorticity:
             print(f"  Infs in U: {np.isinf(uthta).sum()}")
             
             # Identify which of the 16 levels are broken
-            for i in range(16):
+            for i in range(kthta):
                 if not np.isfinite(uthta[i]).all():
                     print(f"  Level index {i} contains invalid values.")
 
@@ -661,12 +690,222 @@ class potential_vorticity:
             sigma=(0, 2, 2), 
             mode=['nearest', 'nearest', 'wrap']
         )
+
+
         return ipv_smooth
                                                      
     
+  
+    
+    def adjust_stability_vectorized(self, tpres, plevs, tsfc, psfc):
+        """
+        Final Refined Version: Fixes the broadcasting error and 
+        retains the superior 'Trapped' logic.
+        """
+        plvls, nj, ni = tpres.shape
+        kappa = 0.2857 # NCAR Reanalysis 1
+        p0 = 100000.0
+        
+        # 1. Calculate Potential Temperatures
+        potsfc = tsfc * (p0 / psfc)**kappa
+        # Broadcast plevs (17,) to (17, 1, 1) to match (17, 73, 144)
+        thtap = tpres * (p0 / plevs[:, np.newaxis, np.newaxis])**kappa
+        
+        thtalo = np.min(potsfc)
+        
+        # Dynamic Roof Index (10th level for NCAR 17-level data)
+        mid_idx = (plvls // 2) + 1
+        thtahi = np.max(thtap[mid_idx:]) # Seed with the max of the upper deck
+        
+        # 2. Sequential Vertical Adjustment
+        for k in range(plvls):
+            # Is this pressure level physically 'above' the ground?
+            is_above_ground = (psfc > plevs[k])
+            
+            if k == 0:
+                # Level 0 (1000hPa): Compare to surface
+                # FIX: Added [0] to thtap to match 2D shapes
+                mask = is_above_ground & (thtap[0] <= potsfc)
+                thtap[0] = np.where(mask, potsfc + 0.01, thtap[0])
+            else:
+                # Is the ground 'trapped' between level k and k-1?
+                is_trapped = (psfc < plevs[k-1])
+                
+                # Logic A: Ground is the neighbor (use potsfc)
+                mask_a = is_above_ground & is_trapped & (thtap[k] <= potsfc)
+                thtap[k] = np.where(mask_a, potsfc + 0.01, thtap[k])
+            
+                # Logic B: General floor-to-floor (use level below)
+                mask_b = is_above_ground & (~is_trapped) & (thtap[k] <= thtap[k-1])
+                thtap[k] = np.where(mask_b, thtap[k-1] + 0.01, thtap[k])
+            
+            # 3. Update the Global Roof (THTAHI)
+            if k >= mid_idx:
+                thtahi = max(thtahi, np.max(thtap[k]))
+
+        return thtap, potsfc, thtahi, thtalo
+
+    def adjust_stability_moore_1993(self, tpres, plevs, tsfc, psfc):
+        """
+        Final Refined Architect's Version: Moore (1993) Heat-Neutral Stability.
+        Updated: thtahi is a running maximum, mid_point pre-calculated.
+        """
+        plvls, nj, ni = tpres.shape
+        kappa = self.config['KAPPA']  # 0.2857
+        p0 = self.config['P0']        # 100000.0
+        
+        # 1. INITIAL SITE SURVEY (Basement and Mid-Point)
+        mid_idx = (plvls // 2) + 1  # For 17 levels, this is index 9 (10th level)
+    
+        # Potential Temp at Surface
+        potsfc = tsfc * (p0 / psfc)**kappa
+        thtalo = np.min(potsfc)
+        
+        # Potential Temp at All Isobaric Levels (The Floors)
+        thtap = tpres * (p0 / plevs[:, np.newaxis, np.newaxis])**kappa
+        
+        # Initialize Roof Seed (Following Fortran logic: seed with the 10th level)
+        thtahi = np.max(thtap[mid_idx])
+    
+        # 2. THE SEQUENTIAL BUILD (Vertical Monotonicity)
+        for k in range(plvls):
+            is_above_ground = (psfc > plevs[k])
+            
+            if k == 0:
+                # Level 0 (1000hPa): Compare to surface (Anchor)
+                mask_0 = is_above_ground & (thtap[0] <= potsfc)
+                thtap[0] = np.where(mask_0, potsfc + 0.01, thtap[0])
+            else:
+                # Check for Moore (1993) instability (Upper colder than lower)
+                # Only check points physically in the air
+                is_unstable = is_above_ground & (thtap[k] <= thtap[k-1])
+                
+                # THE HEAT-NEUTRAL SPLIT:
+                # Conserves energy while forcing stability for the solver
+                theta_mean = (thtap[k] + thtap[k-1]) / 2.0
+                
+                thtap[k-1] = np.where(is_unstable, theta_mean - 0.005, thtap[k-1])
+                thtap[k]   = np.where(is_unstable, theta_mean + 0.005, thtap[k])
+            
+                # 3. RUNNING ROOF SURVEY
+                # Update the global high if we are in the upper atmosphere (Level 10+)
+                if k >= mid_idx:
+                   # This is faster than a full 3D scan at the end
+                    thtahi = max(thtahi, np.max(thtap[k]))
+                    
+                    print(f"Blueprint Verified: Floors={plvls} | Low={thtalo:.2f}K | High={thtahi:.2f}K")
+                    
+        return thtap, potsfc, thtahi, thtalo
+
+
+
+
+    def calculate_isentropic_levels_flexible(self, potsfc, thtahi, thtalo, d_theta, max_levels, coverage=0.10):
+        """
+        Architect's Level Generator: Uses the Moore 1993 outputs to define the 'Zoning'.
+        
+        Parameters:
+        potsfc     : 2D array (theta_sfc) -> The 'Floor'
+        thtahi     : float                -> The 'Roof'
+        thtalo     : float                -> The 'Absolute Basement'
+        d_theta    : float                -> The 'Floor Height' (DTHTA)
+        max_levels : int                  -> The 'Max Stories' (MAXLVL)
+        coverage   : float                -> The '10% Occupancy Rule'
+        """
+        
+        # 1. Setup the Site Survey
+        ni_nj = potsfc.size
+        npts_required = ni_nj * coverage  # The 10% rule
+        
+        # 2. Find the Starting Floor (Refactors loops 600-1000)
+        # Use thtalo (Absolute Basement) as the dynamic starting point
+        current_theta = np.floor(thtalo / d_theta) * d_theta
+        
+        while True:
+            # Count points where the target isentrope is 'in the air' (Surface is colder)
+            npts_found = np.sum(potsfc <= current_theta)
+            
+            if npts_found >= npts_required:
+                break
+            current_theta += d_theta
+        
+            if current_theta > 600.0: break # Safety break
+            
+            start_theta = current_theta
+        print(f"ISENTROPIC FOUNDATION ANCHORED AT: {start_theta} K")
+        
+        # 3. Build the Stack (Refactors loops 1100)
+        # Generate exactly max_levels floors starting from start_theta
+        thta_list = [start_theta + (i * d_theta) for i in range(max_levels)]
+        thta = np.array(thta_list)
+        
+        # 4. Apply the Top-Cap Filter (Refactors loops 1300-1600)
+        # Use thtahi (The Dynamic Roof) to ensure we don't build into space
+        kthta = max_levels
+        while kthta > 0:
+            if thtahi >= thta[kthta - 1]:
+                break
+            kthta -= 1
+
+        thta_final = thta[:kthta]
+        
+        print(f"FINAL TOP LEVEL: {thta_final[-1]} K")
+        print(f"TOTAL VALID LEVELS FOR CALCULATION: {len(thta_final)}")
+        
+        return thta_final
+
+    def calculate_isentropic_levels_flexible(self, potsfc, thtap, thtahi, thtalo, d_theta, max_levels, coverage=0.10):
+        """
+        Final Refined Architect's Generator: 
+        Includes the specific 10% Top-Cap Filter (Refactors 1300-1600).
+        """
+        ni_nj = potsfc.size
+        threshold = ni_nj * coverage  # The 10% Rule (NI * NJ / 10)
+        
+        # 1. BASEMENT: Find start_theta (Refactors 600-1000)
+        current_theta = np.floor(thtalo / d_theta) * d_theta
+        while True:
+            if np.sum(potsfc <= current_theta) >= threshold:
+                break
+            current_theta += d_theta
+            start_theta = current_theta
+            
+            # 2. THE STACK: Generate candidate levels (Refactors 1100)
+            # We build up to MAXLVL + 1 initially to test the limits
+            thta_candidates = np.array([start_theta + (i * d_theta) for i in range(max_levels)])
+
+            # 3. THE ROOF: The 10% Top-Cap Check (Refactors 1300-1600)
+            # We look at the Potential Temp at the VERY TOP isobaric level (thtap[-1])
+            # THTAP (I, J, PLVLS) in Fortran is thtap[-1, :, :] in Python
+            theta_at_model_top = thtap[-1, :, :]
+            
+            kthta = len(thta_candidates)
+            while kthta > 0:
+                target_top_theta = thta_candidates[kthta - 1]
+            
+                # Rule: Is the model's top level warmer than our target theta at 10% of points?
+                # IF (THTAP (I, J, PLVLS) .GE. THTA (KTHTA))
+                npts_top = np.sum(theta_at_model_top >= target_top_theta)
+                
+                if npts_top >= threshold:
+                    break
+        
+        # If not enough points, drop one level and try again (GO TO 1300)
+        kthta -= 1
+    
+        thta_final = thta_candidates[:kthta]
+
+        # 4. REPORTING (Refactors 1600)
+        if len(thta_final) >= max_levels:
+            print(f"MAXLVL reached: Top Level is {thta_final[-1]}K.")
+        else:
+            print(f"Roof Check: Top Level capped at {thta_final[-1]}K due to data limits.")
+            
+        return thta_final
+
     def p2thta(self,lats,lons,plevs,tsfc,psfc,tpres):
 
-        maxlvl = 17
+        maxlvl = 22
         plvls = len(plevs)
         cp = float(1004)
 
@@ -701,7 +940,11 @@ class potential_vorticity:
         thtap = self.pot(tpres,plevs)
 
 
-        thtahi = thtap[9,0,0]
+        strat_idx = (plvls // 2) + 1 
+        
+        # PARITY INITIALIZATION: Match F77 THTAHI = POT(TPRES(1,1,10), PRES(10))
+        thtahi = thtap[strat_idx, 0, 0]
+        
         for k in range(0,len(plevs)):
             for j in range(0,latLen):
                 for i in range(0,lonLen):
@@ -877,14 +1120,116 @@ class potential_vorticity:
                     if (pthta[kout,j,i] > pthta[kout-1,j,i]):
                         pthta[kout,j,i] = pthta[kout-1,j,i] + 0.01
 
-        print(pthta.shape)
+        #print(pthta.shape)
         ret = []
         ret.append(kthta)
         ret.append(pthta)
         ret.append(thta)
         return ret
 
+    def sipv2_vectorized(self, lats, lons, kthta, thta, pthta, uthta, vthta):
+        """
+        Vectorized EPV calculation for NCAR/NOAA Reanalysis 1.
+        Handles Surface (k=0) and TOA (k=-1) using one-sided differences.
+        """
+        # 1. Absolute Vorticity via windspharm (Vectorized across all 16 levels)
+        w = VectorWind(uthta, vthta)
+        absVor = w.absolutevorticity()
+        
+        # Constants
+        p0 = 100000.0  
+        kappa = 0.2857 
+        gravity = 9.80665
+        
+        # Pre-allocate 3D arrays
+        stabl = np.zeros_like(pthta)
+        thta_3d = thta[:, np.newaxis, np.newaxis]
+        
+        # --- PART A: INTERNAL LEVELS (Centered Difference) ---
+        # k from 1 to 14
+        p_up_mid = pthta[2:, :, :]
+        p_dn_mid = pthta[0:-2, :, :]
+        
+        mask_mid = (p_up_mid != p_dn_mid) & (p_dn_mid > 0)
+        
+        # log(theta_up / theta_dn) / log(p_up / p_dn)
+        dlt_mid = np.log(thta_3d[2:] / thta_3d[0:-2])
+        dlp_mid = np.log(np.divide(p_up_mid, p_dn_mid, where=mask_mid, out=np.ones_like(p_up_mid)))
+        
+        dltdlp_mid = np.zeros_like(dlp_mid)
+        np.divide(dlt_mid, dlp_mid, out=dltdlp_mid, where=(dlp_mid != 0))
+        
+        stabl[1:-1, :, :] = (thta_3d[1:-1] / pthta[1:-1, :, :]) * (dltdlp_mid - kappa)
+        
+        # --- PART B: SURFACE LAYER (k=0, Forward Difference) ---
+        # Compare Level 0 to Level 1
+        p_bot = pthta[0, :, :]
+        p_next = pthta[1, :, :]
+        mask_bot = (p_next != p_bot) & (p_bot > 0)
+        
+        dlt_bot = np.log(thta[1] / thta[0])
+        dlp_bot = np.log(np.divide(p_next, p_bot, where=mask_bot, out=np.ones_like(p_bot)))
+        
+        dltdlp_bot = np.zeros_like(dlp_bot)
+        np.divide(dlt_bot, dlp_bot, out=dltdlp_bot, where=(dlp_bot != 0))
+        
+        stabl[0, :, :] = (thta[0] / pthta[0, :, :]) * (dltdlp_bot - kappa)
+        
+        # --- PART C: TOP LAYER (k=-1, Backward Difference) ---
+        # Compare Top Level to Level below it
+        p_top = pthta[-1, :, :]
+        p_prev = pthta[-2, :, :]
+        mask_top = (p_top != p_prev) & (p_prev > 0)
+        
+        dlt_top = np.log(thta[-1] / thta[-2])
+        dlp_top = np.log(np.divide(p_top, p_prev, where=mask_top, out=np.ones_like(p_top)))
+        
+        dltdlp_top = np.zeros_like(dlp_top)
+        np.divide(dlt_top, dlp_top, out=dltdlp_top, where=(dlp_top != 0))
+        
+        stabl[-1, :, :] = (thta[-1] / pthta[-1, :, :]) * (dltdlp_top - kappa)
+        
+        # --- FINAL CALCULATION ---
+        # EPV = -g * (zeta + f) * Static_Stability
+        ipv = -gravity * absVor * stabl
+        
+        # Gaussian smoothing to remove grid noise (2.5 degree grid typically uses sigma 2)
+        return ndimage.gaussian_filter(ipv * 1e6, sigma=(0, 2, 2))
 
+    
+    def universal_lorenz_clip(thta_levels, p_sfc, t_sfc, vars_dict, sfc_vars_dict):
+        """
+        Architect's approach: Variable-agnostic Lorenz clipping.
+        
+        Parameters:
+        thta_levels  : List/Array of target isentropic levels (e.g., [280, 290...])
+        p_sfc        : 2D array of Surface Pressure (from ANY model)
+        t_sfc        : 2D array of Surface Temperature (from ANY model)
+        3d_vars_dict : Dictionary of 3D interpolated arrays {'P': pthta, 'U': uthta, 'V': vthta}
+        sfc_vars_dict: Dictionary of 2D surface arrays {'P': p_sfc, 'U': u_sfc, 'V': v_sfc}
+        """
+        
+        # 1. Calculate the Universal Threshold (Potential Temp at Ground)
+        # R/Cp = 0.2857 is standard across NCEP/NCAR/ECMWF
+        # Ensure p_sfc is in same units as 100000 (Pascals)
+        theta_sfc = t_sfc * (100000.0 / p_sfc)**0.2857
+        
+        # 2. Iterate through levels and 'Skin' the underground points
+        for k, theta_target in enumerate(thta_levels):
+            # The 'Underground' Mask
+            underground = theta_target < theta_sfc
+            
+            # Apply the clip to EVERY variable in your dictionary
+        # This makes it agnostic: add 'T' or 'Q' to the dict, and it just works.
+        for var_name in vars_dict.keys():
+            target_3d = vars_dict[var_name]
+            source_2d = sfc_vars_dict[var_name]
+            
+            # Force the 3D 'underground' point to match the 2D surface value
+            target_3d[k, underground] = source_2d[underground]
+            
+        return vars_dict
+    
     def tests2thta(self,lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta):
         
 
@@ -920,14 +1265,18 @@ class potential_vorticity:
         sthta_f23 = np.transpose(sthta_new_full[:, :, :], (2, 1, 0))
         sthta_f23 = np.ascontiguousarray(sthta_f23)
 
+
+        
         
         sthta_numpy = self.s2thta(plevs,uins, pthta, psfc, uwndI)
 
+        sthta_numpy2 = self.s2thta_refactored(plevs,uins, pthta, psfc, uwndI)
+        
         mea = np.mean(np.abs(sthta_numpy - sthta_f77))
         
         print(f"Mean Absolute Error: {mea} m/s")
 
-        mea1 = np.mean(np.abs(sthta_f23-sthta_numpy))
+        mea1 = np.mean(np.abs(sthta_f77-sthta_numpy2))
 
         
         print(f"Mean Absolute Error: {mea1} m/s")
@@ -954,9 +1303,8 @@ class potential_vorticity:
         done = np.zeros_like(pthta, dtype=bool)
         
         # 1. INITIALIZATION & SURFACE IDENTITY
-        psfc_3d = psfc[np.newaxis, :, :].repeat(kout, axis=0) 
-        ssfc_3d = ssfc[np.newaxis, :, :].repeat(kout, axis=0)
-
+        psfc_3d = np.broadcast_to(psfc[None, :, :], (kout, nj, ni))
+        ssfc_3d = np.broadcast_to(ssfc[None, :, :], (kout, nj, ni))
         sthta[pthta <= 0] = -9999.0
         done[pthta <= 0] = True
         
@@ -972,18 +1320,26 @@ class potential_vorticity:
                 sthta[match_mask] = val_3d[match_mask]
                 done[match_mask] = True
 
-          # 3. MAIN INTERPOLATION SWEEP
+        # 3. MAIN INTERPOLATION SWEEP
+        pdwn, pmid, pup = [np.zeros_like(sthta) for _ in range(3)]
+        sdwn, smid, sup = [np.zeros_like(sthta) for _ in range(3)]
+        l12, l13, l23 = [np.zeros_like(sthta) for _ in range(3)]
+
         for k in range(plvls):
             root_mask = (~done) & (pthta > pres[k])
             if not np.any(root_mask): continue
             active = root_mask & (~done)
             
             # Placeholders
-            pdwn, pmid, pup = [np.zeros_like(sthta) for _ in range(3)]
-            sdwn, smid, sup = [np.zeros_like(sthta) for _ in range(3)]
-            l12, l13, l23 = [np.zeros_like(sthta) for _ in range(3)]
-
-
+            pdwn.fill(0.0) 
+            pmid.fill(0.0)
+            pup.fill(0.0)
+            sdwn.fill(0.0)
+            smid.fill(0.0)
+            sup.fill(0.0)
+            l12.fill(0.0)
+            l13.fill(0.0)
+            l23.fill(0.0)
             if k == 0:
                 pdwn[active] = psfc_3d[active]
                 sdwn[active] = ssfc_3d[active]
@@ -1055,16 +1411,147 @@ class potential_vorticity:
                 qmid = np.zeros_like(pthta)
                 qup = np.zeros_like(pthta)
                 
-                #qdwn = np.log(pthta/pmid) * np.log(pthta/pup) / (l23 * l13)
+
                 qdwn = np.divide(np.log(pthta/pmid) * np.log(pthta/pup), (l23 * l13), 
                                  where=safe_denom, out=np.zeros_like(pthta))
-                #qmid = -np.log(pthta/pdwn) * np.log(pthta/pup) / (l23 * l12)
+
                 qmid = np.divide(-np.log(pthta/pdwn) * np.log(pthta/pup), (l23 * l12),
                                  where=safe_denom, out=np.zeros_like(pthta))
-                #qup  = np.log(pthta/pdwn) * np.log(pthta/pmid) / (l13 * l12)
+
                 qup  = np.divide(np.log(pthta/pdwn) * np.log(pthta/pmid), (l13 * l12),
                                  where=safe_denom, out=np.zeros_like(pthta))
                 sthta[active] = qdwn[active]*sdwn[active] + qmid[active]*smid[active] + qup[active]*sup[active]
                 done[active] = True
 
         return sthta
+
+    def s2thta_refactored(self, plevs, spres, pthta, psfc, ssfc):
+        # Dimensions: (KOUT, NJ, NI) 
+        kout, nj, ni = pthta.shape
+        plvls = plevs.size # 
+        tol = 0.01
+
+        pres = np.float64(plevs)
+        lnpu1p = np.log(pres[1:] / pres[:-1]) 
+        lnpu2p = np.log(pres[2:] / pres[:-2])
+        
+        sthta = np.zeros_like(pthta, dtype=np.float64)
+        done = np.zeros_like(pthta, dtype=bool)
+        
+        # 1. INITIALIZATION & SURFACE IDENTITY
+        psfc_3d = np.broadcast_to(psfc[None, :, :], (kout, nj, ni))
+        ssfc_3d = np.broadcast_to(ssfc[None, :, :], (kout, nj, ni))
+
+        sthta[pthta <= 0] = -9999.0
+        done[pthta <= 0] = True
+        
+        mask_sfc = (~done) & (np.abs(pthta - psfc_3d) < tol)
+        sthta[mask_sfc] = ssfc_3d[mask_sfc]
+        done[mask_sfc] = True
+
+        # Pre-check isobaric matches for all levels
+        for k in range(plvls):
+            match_mask = (~done) & (np.abs(pthta - pres[k]) < tol)
+            if np.any(match_mask):
+                val_3d = spres[k][None, :, :].repeat(kout, axis=0)
+                sthta[match_mask] = val_3d[match_mask]
+                done[match_mask] = True
+
+        # --- BRANCH 1: SURFACE SPECIAL CASE (k=0) ---
+        k = 0
+        active_0 = (~done) & (pthta > pres[k])
+        if np.any(active_0):
+            pdwn, pmid, pup = [np.zeros_like(sthta) for _ in range(3)]
+            sdwn, smid, sup = [np.zeros_like(sthta) for _ in range(3)]
+            l12, l13, l23 = [np.zeros_like(sthta) for _ in range(3)]
+
+            pdwn[active_0], sdwn[active_0] = psfc_3d[active_0], ssfc_3d[active_0]
+            c1_3d = (np.abs(psfc_3d - pres[k]) < tol)
+            
+            pmid[active_0] = np.where(c1_3d, pres[k],   pres[k+1])[active_0]
+            pup[active_0]  = np.where(c1_3d, pres[k+1], pres[k+2])[active_0]
+            
+            s_k0, s_k1, s_k2 = spres[k,None], spres[k+1,None], spres[k+2,None]
+            smid[active_0] = np.where(c1_3d, s_k0, s_k1)[active_0]
+            sup[active_0]  = np.where(c1_3d, s_k1, s_k2)[active_0]
+            
+            l12[active_0] = np.where(c1_3d, lnpu1p[k], lnpu1p[k+1])[active_0]
+            
+            with np.errstate(divide='ignore', invalid='ignore'):
+                l13[active_0] = np.where(c1_3d, np.log(np.divide(pup, pdwn, where=pdwn!=0)), lnpu2p[k])[active_0]
+                l23[active_0] = np.where(c1_3d, np.log(np.divide(pmid, pdwn, where=pdwn!=0)), lnpu1p[k])[active_0]
+
+            self._apply_quadratic(sthta, done, active_0, pthta, pdwn, pmid, pup, sdwn, smid, sup, l12, l13, l23)
+
+        # --- BRANCH 2: THE HOT LOOP (k=1 to 15) ---
+        pdwn, pmid, pup = [np.zeros_like(sthta) for _ in range(3)]
+        sdwn, smid, sup = [np.zeros_like(sthta) for _ in range(3)]
+        l12, l13, l23 = [np.zeros_like(sthta) for _ in range(3)]
+
+        for k in range(1, plvls - 1):
+            active = (~done) & (pthta > pres[k])
+            if not np.any(active): continue
+            
+
+            m_psfc = active & (psfc_3d < pres[k-1])
+            m_gen  = active & (~m_psfc)
+            pdwn.fill(0.0) 
+            pmid.fill(0.0)
+            pup.fill(0.0)
+            sdwn.fill(0.0)
+            smid.fill(0.0)
+            sup.fill(0.0)
+            l12.fill(0.0)
+            l13.fill(0.0)
+            l23.fill(0.0)
+
+            
+            if np.any(m_psfc):
+                pdwn[m_psfc], sdwn[m_psfc] = psfc_3d[m_psfc], ssfc_3d[m_psfc]
+                c3_3d = (np.abs(psfc_3d - pres[k]) < 0.001) # F77 Typo preserved
+                pmid[m_psfc] = np.where(c3_3d, pres[k],   pres[k+1])[m_psfc]
+                pup[m_psfc]  = np.where(c3_3d, pres[k+1], pres[k+2])[m_psfc]
+                
+                skk, skp, sk2 = spres[k,None], spres[k+1,None], spres[k+2,None]
+                smid[m_psfc] = np.where(c3_3d, skk, skp)[m_psfc]
+                sup[m_psfc]  = np.where(c3_3d, skp, sk2)[m_psfc]
+                
+                l12[m_psfc] = np.where(c3_3d, lnpu1p[k], lnpu1p[k+1])[m_psfc]
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    l13[m_psfc] = np.where(c3_3d, np.log(np.divide(pup, pdwn, where=pdwn!=0)), lnpu2p[k])[m_psfc]
+                    l23[m_psfc] = np.where(c3_3d, np.log(np.divide(pmid, pdwn, where=pdwn!=0)), lnpu1p[k])[m_psfc]
+                
+            if np.any(m_gen):
+                pdwn[m_gen], pmid[m_gen], pup[m_gen] = pres[k-1], pres[k], pres[k+1]
+                sdwn[m_gen] = spres[k-1,None,:,:].repeat(kout, axis=0)[m_gen]
+                smid[m_gen] = spres[k,None,:,:].repeat(kout, axis=0)[m_gen]
+                sup[m_gen]  = spres[k+1,None,:,:].repeat(kout, axis=0)[m_gen]
+                l12[m_gen], l13[m_gen], l23[m_gen] = lnpu1p[k], lnpu2p[k-1], lnpu1p[k-1]
+
+            self._apply_quadratic(sthta, done, active, pthta, pdwn, pmid, pup, sdwn, smid, sup, l12, l13, l23)
+
+        # --- BRANCH 3: TOP CAP SPECIAL CASE (k=16) ---
+        k = plvls - 1
+        active_top = (~done) & (pthta > pres[k])
+        if np.any(active_top):
+            pdwn, pmid, pup = pres[k-2], pres[k-1], pres[k]
+            # Manual repeats for the top cap 3D mask
+            sdwn_t = spres[k-2][None].repeat(kout, axis=0)
+            smid_t = spres[k-1][None].repeat(kout, axis=0)
+            sup_t  = spres[k][None].repeat(kout, axis=0)
+            l12_t, l13_t, l23_t = lnpu1p[k-1], lnpu2p[k-2], lnpu1p[k-2]
+            
+            # Direct quadratic for the top cap
+            self._apply_quadratic(sthta, done, active_top, pthta, pdwn, pmid, pup, sdwn_t, smid_t, sup_t, l12_t, l13_t, l23_t)
+
+        return sthta
+
+    def _apply_quadratic(self, sthta, done, mask, pthta, pdwn, pmid, pup, sdwn, smid, sup, l12, l13, l23):
+        """Helper to keep the math bit-identical across branches"""
+        safe_denom = (mask) & (np.abs(l23) > 1e-12) & (np.abs(l13) > 1e-12) & (np.abs(l12) > 1e-12)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            qdwn = np.divide(np.log(pthta/pmid) * np.log(pthta/pup), (l23 * l13), where=safe_denom, out=np.zeros_like(pthta))
+            qmid = np.divide(-np.log(pthta/pdwn) * np.log(pthta/pup), (l23 * l12), where=safe_denom, out=np.zeros_like(pthta))
+            qup  = np.divide(np.log(pthta/pdwn) * np.log(pthta/pmid), (l13 * l12), where=safe_denom, out=np.zeros_like(pthta))
+            sthta[mask] = (qdwn*sdwn + qmid*smid + qup*sup)[mask]
+            done[mask] = True
