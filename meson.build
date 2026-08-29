@@ -1,50 +1,65 @@
-project('pramanavayu', 'cpp', 
-        version: '0.1.0', 
-        default_options: ['cpp_std=c++20', 'optimization=3'])
+project('pramanavayu', 'cpp',
+    version: '0.1.0',
+    default_options: [
+        'cpp_std=c++20',      # Matches your project requirement
+        'optimization=3',     # Max performance for voxel interpolation
+        'warning_level=2'
+    ]
+)
 
+# --- 1. Find Python and its Development Dependency ---
+# py_dep is critical; without it, you get "undefined symbol" errors for Py... symbols
+py_mod = import('python')
+py = py_mod.find_installation(pure: false)
+py_dep = py.dependency(embed:true)
 
-py = import('python').find_installation(pure: false)
-
-
-# --- 2. Dynamic NumPy Path (As String) ---
+# --- 2. Dynamic NumPy Include Path ---
+# Required for xtensor-python to interface with the NumPy C-API
 numpy_inc_path = run_command(py, [
-  '-c', 'import numpy; print(numpy.get_include())'
+    '-c', 'import numpy; print(numpy.get_include())'
 ], check: true).stdout().strip()
 
+# --- 3. Header and Source Locations ---
+# inc_vayu tells the compiler where to find vayu_ops.hpp
+inc_vayu = include_directories('cpp/include')
 
-# Dependencies
-# Ensure xtensor-python is installed via your package manager or conda
+sources = [
+    'cpp/vayu_kernels.cpp', 
+    'cpp/vayu_bindings.cpp'
+]
+
+# --- 4. Define Dependencies ---
+# Meson handles finding the system paths for these libraries
 deps = [
+    py_dep,
     dependency('pybind11'),
     dependency('xtensor'),
     dependency('xtensor-python'),
     dependency('openmp')
 ]
 
-# 1. Define the source files first
-sources = [
-    'cpp/vayu_kernels.cpp', 
-    'cpp/vayu_bindings.cpp'
-]
-
-# CRITICAL: -fno-fast-math prevents the compiler from reordering 
-# floating-point ops, which is essential to match F77 at 1e-15.
+# --- 5. Build the Extension Module ---
 py.extension_module(
     'vayu_core',
     sources: sources,
-    dependencies: [
-        dependency('pybind11'),
-        dependency('xtensor'),
-        dependency('xtensor-python'),
-        dependency('openmp')
-    ],
+    dependencies: deps,
+    include_directories: [inc_vayu],
     cpp_args: [
         '-march=native',
         '-mavx2',
-        '-fno-fast-math', # Reminder: Use no-fast-math for 1e-15 precision matching
+        '-fno-fast-math',
         '-fopenmp',
-        '-I' + numpy_inc_path, # Manually inject the NumPy path as requested
+        '-I' + numpy_inc_path,
         '-D_GLIBCXX_ASSERTIONS=1'
     ],
+    # Add link_args to prevent the linker from dropping "unused" symbols
+    link_args: ['-Wl,--no-as-needed'], 
+    gnu_symbol_visibility: 'default',
     install: true
 )
+
+
+
+
+
+
