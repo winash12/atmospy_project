@@ -1,4 +1,16 @@
-interpolation:
-  # Toggle this to switch backends
-  backend: "f23"  # options: "f23", "python"
-  module_name: "weather_lib"
+constants:
+  CP: 1004.0
+  MD: 28.9644
+  R: 8314.41
+  G: 9.80665
+  P0: 100000.0
+  MISSING_DATA: -9999.0
+
+solver_settings:
+  MAXLVL: 50
+  DTHTA: 5.0
+  EPSLN: 1.0
+  NMAX: 5
+  MOORE_EPSILON: 0.005
+  STRATEGY_MODULE: "physics_strategies"
+  STRATEGY_CLASS: "LegacySAStrategy"

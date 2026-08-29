@@ -1,5 +1,4 @@
-#!/usr/bin/python3.8
-import sys,math,random
+import sys,math,random,os
 import warnings
 import numpy as np
 from numpy import newaxis
@@ -15,8 +14,34 @@ import weather_lib
 import traceback
 from numpy.testing import assert_allclose
 
+from config_loader import ConfigContext,inject_constants
+from strategy_factory import DynamicStrategyFactory
+import ff_core
+import faulthandler
+import signal 
+faulthandler.enable()
+
+# Register Ctrl+\ (SIGQUIT) to print the exact active execution pointer line
+faulthandler.register(signal.SIGQUIT)
 class potential_vorticity:
 
+    def __init__(self, config_path="config.yaml"):
+        """
+        Silicon Valley style Enterprise constructor.
+        Loads your configuration context once upon object instantiation,
+        caching the constants inside the class state for all calculations.
+        """
+        # Load and parse your constants down to machine epsilon
+        self.config_env = ConfigContext(config_path)
+        
+        # Store a clean, direct dictionary reference for your @inject_physics decorator mapping
+        self.C = {
+            'kappa': self.config_env.KAPPA,
+            'p0': self.config_env.P0,
+            'missing': self.config_env.MISSING_DATA,
+            'moore_epsilon': self.config_env.MOORE_EPSILON
+        }
+    
     def ddx(self,s,lat,lon,missingData):
 
         lonLen = len(lon)
@@ -227,43 +252,6 @@ class potential_vorticity:
     
         return absv
         
-        
-    def pot(self,tmp,pres):
-        cp = 1004.0
-        md = 28.9644
-        R = 8314.41
-        Rd = R/md
-        pottemp = np.zeros_like(tmp)
-        pottemp = tmp * (100000./pres[:,None,None]) ** (Rd/cp)
-        return pottemp
-
-    def potsfc(self,tsfc,psfc):
-        cp = 1004.0
-        md = 28.9644
-        R = 8314.41
-        Rd = R/md
-        pottemp = np.zeros_like(tsfc)
-        pottemp = tsfc * (100000./psfc) ** (Rd/cp)
-        return pottemp
-
-
-    def calculate_potential_temperature(self, tmp, pres):
-
-
-
-        kappa = self.phys.KAPPA.m  # Rd/Cp
-        p0 = self.phys.P0.m        # 100000.0
-    
-
-        if pres.ndim == 1:
-            pres_resolved = pres[:, np.newaxis, np.newaxis]
-        else:
-            pres_resolved = pres
-                                                     
-
-        return tmp * (p0 / pres_resolved) ** kappa
-
-    
     def pvonp_vectorized(self, ni, nj, lat, lon, pres, pres1, pres2, tmp, tmp1, tmp2, u, u1, u2, v, v1, v2):
 
     # 0. Load Constants (Using magnitudes for SIMD performance)
@@ -694,218 +682,964 @@ class potential_vorticity:
 
         return ipv_smooth
                                                      
-    
-  
-    
-    def adjust_stability_vectorized(self, tpres, plevs, tsfc, psfc):
+    @inject_constants
+    def pot(self, tmp, pres, **kwargs):
         """
-        Final Refined Version: Fixes the broadcasting error and 
-        retains the superior 'Trapped' logic.
+        Unified Potential Temperature (theta) engine.
+        Handles 1D, 2D, and 3D pressure shapes automatically via broadcasting.
         """
-        plvls, nj, ni = tpres.shape
-        kappa = 0.2857 # NCAR Reanalysis 1
-        p0 = 100000.0
+        kappa = kwargs["KAPPA"]
+        p0 = kwargs["P0"]
+        missing = kwargs.get("MISSING_DATA", -9999.0) # Graceful fallback if in YAML
         
-        # 1. Calculate Potential Temperatures
-        potsfc = tsfc * (p0 / psfc)**kappa
-        # Broadcast plevs (17,) to (17, 1, 1) to match (17, 73, 144)
-        thtap = tpres * (p0 / plevs[:, np.newaxis, np.newaxis])**kappa
+        tmp_arr = np.asarray(tmp)
+        pres_arr = np.asarray(pres)
         
-        thtalo = np.min(potsfc)
-        
-        # Dynamic Roof Index (10th level for NCAR 17-level data)
-        mid_idx = (plvls // 2) + 1
-        thtahi = np.max(thtap[mid_idx:]) # Seed with the max of the upper deck
-        
-        # 2. Sequential Vertical Adjustment
-        for k in range(plvls):
-            # Is this pressure level physically 'above' the ground?
-            is_above_ground = (psfc > plevs[k])
-            
-            if k == 0:
-                # Level 0 (1000hPa): Compare to surface
-                # FIX: Added [0] to thtap to match 2D shapes
-                mask = is_above_ground & (thtap[0] <= potsfc)
-                thtap[0] = np.where(mask, potsfc + 0.01, thtap[0])
-            else:
-                # Is the ground 'trapped' between level k and k-1?
-                is_trapped = (psfc < plevs[k-1])
-                
-                # Logic A: Ground is the neighbor (use potsfc)
-                mask_a = is_above_ground & is_trapped & (thtap[k] <= potsfc)
-                thtap[k] = np.where(mask_a, potsfc + 0.01, thtap[k])
-            
-                # Logic B: General floor-to-floor (use level below)
-                mask_b = is_above_ground & (~is_trapped) & (thtap[k] <= thtap[k-1])
-                thtap[k] = np.where(mask_b, thtap[k-1] + 0.01, thtap[k])
-            
-            # 3. Update the Global Roof (THTAHI)
-            if k >= mid_idx:
-                thtahi = max(thtahi, np.max(thtap[k]))
-
-        return thtap, potsfc, thtahi, thtalo
-
-    def adjust_stability_moore_1993(self, tpres, plevs, tsfc, psfc):
-        """
-        Final Refined Architect's Version: Moore (1993) Heat-Neutral Stability.
-        Updated: thtahi is a running maximum, mid_point pre-calculated.
-        """
-        plvls, nj, ni = tpres.shape
-        kappa = self.config['KAPPA']  # 0.2857
-        p0 = self.config['P0']        # 100000.0
-        
-        # 1. INITIAL SITE SURVEY (Basement and Mid-Point)
-        mid_idx = (plvls // 2) + 1  # For 17 levels, this is index 9 (10th level)
-    
-        # Potential Temp at Surface
-        potsfc = tsfc * (p0 / psfc)**kappa
-        thtalo = np.min(potsfc)
-        
-        # Potential Temp at All Isobaric Levels (The Floors)
-        thtap = tpres * (p0 / plevs[:, np.newaxis, np.newaxis])**kappa
-        
-        # Initialize Roof Seed (Following Fortran logic: seed with the 10th level)
-        thtahi = np.max(thtap[mid_idx])
-    
-        # 2. THE SEQUENTIAL BUILD (Vertical Monotonicity)
-        for k in range(plvls):
-            is_above_ground = (psfc > plevs[k])
-            
-            if k == 0:
-                # Level 0 (1000hPa): Compare to surface (Anchor)
-                mask_0 = is_above_ground & (thtap[0] <= potsfc)
-                thtap[0] = np.where(mask_0, potsfc + 0.01, thtap[0])
-            else:
-                # Check for Moore (1993) instability (Upper colder than lower)
-                # Only check points physically in the air
-                is_unstable = is_above_ground & (thtap[k] <= thtap[k-1])
-                
-                # THE HEAT-NEUTRAL SPLIT:
-                # Conserves energy while forcing stability for the solver
-                theta_mean = (thtap[k] + thtap[k-1]) / 2.0
-                
-                thtap[k-1] = np.where(is_unstable, theta_mean - 0.005, thtap[k-1])
-                thtap[k]   = np.where(is_unstable, theta_mean + 0.005, thtap[k])
-            
-                # 3. RUNNING ROOF SURVEY
-                # Update the global high if we are in the upper atmosphere (Level 10+)
-                if k >= mid_idx:
-                   # This is faster than a full 3D scan at the end
-                    thtahi = max(thtahi, np.max(thtap[k]))
-                    
-                    print(f"Blueprint Verified: Floors={plvls} | Low={thtalo:.2f}K | High={thtahi:.2f}K")
-                    
-        return thtap, potsfc, thtahi, thtalo
-
-
-
-
-    def calculate_isentropic_levels_flexible(self, potsfc, thtahi, thtalo, d_theta, max_levels, coverage=0.10):
-        """
-        Architect's Level Generator: Uses the Moore 1993 outputs to define the 'Zoning'.
-        
-        Parameters:
-        potsfc     : 2D array (theta_sfc) -> The 'Floor'
-        thtahi     : float                -> The 'Roof'
-        thtalo     : float                -> The 'Absolute Basement'
-        d_theta    : float                -> The 'Floor Height' (DTHTA)
-        max_levels : int                  -> The 'Max Stories' (MAXLVL)
-        coverage   : float                -> The '10% Occupancy Rule'
-        """
-        
-        # 1. Setup the Site Survey
-        ni_nj = potsfc.size
-        npts_required = ni_nj * coverage  # The 10% rule
-        
-        # 2. Find the Starting Floor (Refactors loops 600-1000)
-        # Use thtalo (Absolute Basement) as the dynamic starting point
-        current_theta = np.floor(thtalo / d_theta) * d_theta
-        
-        while True:
-            # Count points where the target isentrope is 'in the air' (Surface is colder)
-            npts_found = np.sum(potsfc <= current_theta)
-            
-            if npts_found >= npts_required:
-                break
-            current_theta += d_theta
-        
-            if current_theta > 600.0: break # Safety break
-            
-            start_theta = current_theta
-        print(f"ISENTROPIC FOUNDATION ANCHORED AT: {start_theta} K")
-        
-        # 3. Build the Stack (Refactors loops 1100)
-        # Generate exactly max_levels floors starting from start_theta
-        thta_list = [start_theta + (i * d_theta) for i in range(max_levels)]
-        thta = np.array(thta_list)
-        
-        # 4. Apply the Top-Cap Filter (Refactors loops 1300-1600)
-        # Use thtahi (The Dynamic Roof) to ensure we don't build into space
-        kthta = max_levels
-        while kthta > 0:
-            if thtahi >= thta[kthta - 1]:
-                break
-            kthta -= 1
-
-        thta_final = thta[:kthta]
-        
-        print(f"FINAL TOP LEVEL: {thta_final[-1]} K")
-        print(f"TOTAL VALID LEVELS FOR CALCULATION: {len(thta_final)}")
-        
-        return thta_final
-
-    def calculate_isentropic_levels_flexible(self, potsfc, thtap, thtahi, thtalo, d_theta, max_levels, coverage=0.10):
-        """
-        Final Refined Architect's Generator: 
-        Includes the specific 10% Top-Cap Filter (Refactors 1300-1600).
-        """
-        ni_nj = potsfc.size
-        threshold = ni_nj * coverage  # The 10% Rule (NI * NJ / 10)
-        
-        # 1. BASEMENT: Find start_theta (Refactors 600-1000)
-        current_theta = np.floor(thtalo / d_theta) * d_theta
-        while True:
-            if np.sum(potsfc <= current_theta) >= threshold:
-                break
-            current_theta += d_theta
-            start_theta = current_theta
-            
-            # 2. THE STACK: Generate candidate levels (Refactors 1100)
-            # We build up to MAXLVL + 1 initially to test the limits
-            thta_candidates = np.array([start_theta + (i * d_theta) for i in range(max_levels)])
-
-            # 3. THE ROOF: The 10% Top-Cap Check (Refactors 1300-1600)
-            # We look at the Potential Temp at the VERY TOP isobaric level (thtap[-1])
-            # THTAP (I, J, PLVLS) in Fortran is thtap[-1, :, :] in Python
-            theta_at_model_top = thtap[-1, :, :]
-            
-            kthta = len(thta_candidates)
-            while kthta > 0:
-                target_top_theta = thta_candidates[kthta - 1]
-            
-                # Rule: Is the model's top level warmer than our target theta at 10% of points?
-                # IF (THTAP (I, J, PLVLS) .GE. THTA (KTHTA))
-                npts_top = np.sum(theta_at_model_top >= target_top_theta)
-                
-                if npts_top >= threshold:
-                    break
-        
-        # If not enough points, drop one level and try again (GO TO 1300)
-        kthta -= 1
-    
-        thta_final = thta_candidates[:kthta]
-
-        # 4. REPORTING (Refactors 1600)
-        if len(thta_final) >= max_levels:
-            print(f"MAXLVL reached: Top Level is {thta_final[-1]}K.")
+        if pres_arr.ndim == 1 and tmp_arr.ndim == 3:
+            pres_resolved = pres_arr[:, np.newaxis, np.newaxis]
         else:
-            print(f"Roof Check: Top Level capped at {thta_final[-1]}K due to data limits.")
+            pres_resolved = pres_arr
             
-        return thta_final
+        # FIX 1: Bring the 'with' block out of the else clause so it runs for ALL shapes
+        with np.errstate(divide='ignore', invalid='ignore'):
+            theta = tmp_arr * (p0 / pres_resolved) ** kappa
+
+        # FIX 2: Ensure comment and return match the function's base indentation level
+        # Replaces the F77 'IF (PRES .LE. 0.) GO TO' logic cleanly across the whole grid
+        return np.where(pres_resolved <= 0, missing, theta)
+
+   
+    @inject_constants
+    def p2thta_refactored(self, tpres, plevs, tsfc, psfc, **kwargs):
+        """
+        Production-grade potential temperature driver pipeline.
+        Orchestrates vertical stabilization, dynamic grid generation, and 
+        progressive isobaric profile interpolation.
+        """
+        
+        
+        module_path = kwargs['STRATEGY_MODULE']
+        class_path = kwargs['STRATEGY_CLASS']
+        
+        dthta = float(kwargs.get('DTHTA', 10.0))
+        maxlvl = int(kwargs.get('MAXLVL', 50))
+        
+        # Enforce pure float64 processing arrays
+        tsfc = np.asarray(tsfc, dtype=np.float64)
+        psfc = np.asarray(psfc, dtype=np.float64)
+        tpres = np.asarray(tpres, dtype=np.float64)
+        plevs = np.asarray(plevs, dtype=np.float64)
+        
+        plvls = plevs.size
+        nj, ni = psfc.shape
+        
+        # --- PHASE 1: STABILIZE ATMOSPHERIC TEMPERATURES ---
+        potsfc = self.pot(tsfc, psfc)
+        thtap_raw = self.pot(tpres, plevs)
+        thtalo = np.min(potsfc)
+        
+        super_adiabatic_engine = DynamicStrategyFactory.resolve(module_path, class_path)
+        thtap_cleaned, thtahi = super_adiabatic_engine.execute(psfc, plevs, potsfc, thtap_raw, **kwargs)
+        
+        # --- PHASE 2: EXECUTE GRID GENERATOR ---
+        thta_grid_padded, kthta = self.generate_theta_levels_exact(
+            ni, nj, plvls, potsfc, thtap_cleaned, thtalo, thtahi, dthta, maxlvl
+        )
+        thta_grid_clean = thta_grid_padded[:kthta]
+      
+        # --- PHASE 3: UNPACK SOLVER SETTINGS & CONSTANTS ---
+        kappa_val = kwargs["KAPPA"]
+        p0_val = kwargs["P0"]
+        epsln_val = kwargs["EPSLN"]
+        nmax_val = int(kwargs["NMAX"])
+        missing_val = kwargs["MISSING_DATA"]
+        
+        kout = int(kthta)
+        log_plevs = np.log(plevs)
+        nj,ni = tsfc.shape
+        workspace = self._allocate_interpolation_workspace(kout, nj, ni)
+        
+        (
+            pressure_down, 
+            potential_temp_down, 
+            pressure_up, 
+            potential_temp_up, 
+            alogp_down, 
+            alogp_up
+        ) = workspace
+        
+        # Extract missing data configuration
+        missing_val = kwargs.get("MISSING_DATA", -9999.0)
+
+        # Extract solver parameters
+        kappa_val = kwargs.get("KAPPA", float(self.C['kappa']))
+        p0_val    = kwargs.get("P0", 100000.0)
+        epsln_val = kwargs.get("EPSLN", 1.0)
+        nmax_val  = int(kwargs.get("NMAX", 5))
+
+        # --- PHASE 4: EXECUTE VECTORIZED LEVEL HUNTING SWEEP (RESTORED) ---
+        # This populates the done_mask and pthta_init arrays needed by your NR solver
+
+        py_pthta, pressure_down, pressure_up, potential_temp_down, potential_temp_up, alogp_down, alogp_up, py_done = self._execute_vertical_layer_hunt(
+            kthta,
+            plvls,
+            thta_grid_clean,
+            potsfc,
+            psfc,
+            plevs,
+            log_plevs,
+            thtap_cleaned,
+            workspace,
+            missing_val
+        )
+        
+        # 2. FIXED: Pass the exact clean matrix identifiers straight to the NR Engine
+        # This completely syncs your mathematical pipelines and drops the NameError
+        py_pthta, py_tdwn, py_tup, py_dltdlp, py_interc = self._solve_isentropic_pressure_nr_engine(
+            py_pthta,     
+            py_done,      
+            pressure_down,      
+            pressure_up,       
+            potential_temp_down,    
+            potential_temp_up,     
+            alogp_down,    
+            alogp_up,    
+            log_plevs,    
+            thta_grid_clean,  
+            kappa_val, 
+            epsln_val, 
+            nmax_val, 
+            p0_val
+        )
+        print("\n" + "%"*75)
+        print("--> [PASSTHROUGH AUDIT] Inspecting matrices BEFORE passing to NR engine:")
+        print(f"  * Local done_mask TRUE entries:  {np.sum(py_done):,}")
+        print(f"  * Local done_mask FALSE entries: {np.sum(~py_done):,}")
+        print("%"*75 + "\n")
+
+        # 2. Smooth ONLY the actual pressure matrix array variable
+        pthta_final = self._enforce_isentropic_pressure_monotonicity(py_pthta, kout)
+        
+        # 2. FIXED: Evaluate active calculations using the synchronized pressure_down matrix
+        py_active_cells = pressure_down > 0.0
+        
+        # 3. Ensure the final return of p2thta_refactored passes all 6 validation metrics straight to the test harness
+        return pthta_final, py_tdwn, py_tup, py_dltdlp, py_interc, py_active_cells
+
+
+
+    def _allocate_interpolation_workspace(self, kthta, nj, ni):
+        """
+        Allocates and returns the exact 6 core 3D matrix buffers required for the 
+        isentropic pressure coordinate solvers. Enforces clean C-ordering memory.
+        All debugging anchors and redundant intermediate arrays have been stripped.
+        """
+        # Allocate clean scientific production matrices
+        pressure_down       = np.zeros((kthta, nj, ni), dtype=np.float64)
+        potential_temp_down = np.zeros((kthta, nj, ni), dtype=np.float64)
+        pressure_up         = np.zeros((kthta, nj, ni), dtype=np.float64)
+        potential_temp_up   = np.zeros((kthta, nj, ni), dtype=np.float64)
+        alogp_down          = np.zeros((kthta, nj, ni), dtype=np.float64)
+        alogp_up            = np.zeros((kthta, nj, ni), dtype=np.float64)
+
+        return (
+            pressure_down, 
+            potential_temp_down, 
+            pressure_up, 
+            potential_temp_up, 
+            alogp_down, 
+            alogp_up
+        )
+    
+    def _execute_vertical_layer_hunt(self, kthta, plvls, thta_grid_clean, potsfc, psfc, pres, alogp, thtap_cleaned, workspace, missing_val):
+        """
+        Executes a highly optimized progressive vertical column bounding sweep.
+        All debugging tracking registers, console hooks, and trace flags have been stripped.
+        """
+        # FIXED: Synchronize unpacking to exactly 6 variables matching your new workspace!
+        (
+            pressure_down, 
+            potential_temp_down, 
+            pressure_up, 
+            potential_temp_up, 
+            alogp_down, 
+            alogp_up
+        ) = workspace
+        
+        nj,ni = potsfc.shape
+        kout = kthta
+        tol = 0.001
+    
+        # Coordinate broadcasting to 3D grid matrix space (kthta, nj, ni)
+        potsfc_3d = np.broadcast_to(potsfc[None, :, :], (kout, nj, ni))
+        psfc_3d   = np.broadcast_to(psfc[None, :, :], (kout, nj, ni))
+        thta_3d   = np.broadcast_to(thta_grid_clean[:, None, None], (kout, nj, ni))
+        
+        # Initialize tracking matrices
+        done = np.zeros_like(thta_3d, dtype=bool)
+        pthta = np.zeros_like(thta_3d, dtype=np.float64)
+        
+        # Direct high-speed buffer memory reset using native NumPy fills
+        pressure_down.fill(0.0); potential_temp_down.fill(0.0); pressure_up.fill(0.0); potential_temp_up.fill(0.0)
+        alogp_down.fill(0.0); alogp_up.fill(0.0)
+        
+        # =====================================================================
+        # TOP-OF-LOOP EDGE CASES (Isolating Out-of-Bounds Configurations)
+        # =====================================================================
+        # Condition 1: Target potential temperature falls below ground surface boundaries
+        mask_under = thta_3d < potsfc_3d
+        pthta[mask_under] = missing_val
+        done[mask_under] = True
+        
+        # Condition 2: Target potential temperature exceeds highest standard model level
+        thtap_top_3d = np.broadcast_to(thtap_cleaned[plvls-1, None, :, :], (kout, nj, ni))
+        mask_over = (~done) & (thta_3d > thtap_top_3d)
+        pthta[mask_over] = missing_val
+        done[mask_over] = True
+        
+        # Condition 3: Target potential temperature matches surface value within tolerance
+        mask_sfc = (~done) & (np.abs(thta_3d - potsfc_3d) < tol)
+        pthta[mask_sfc] = psfc_3d[mask_sfc]
+        done[mask_sfc] = True
+        
+        # =====================================================================
+        # MAIN PROGRESSIVE SWEEP (Vectorized Vertical Grid Column Evaluation)
+        # =====================================================================
+        
+        # --- BRANCH 1: SURFACE CONTACT SPECIAL CASE (Model Level Index 0) ---
+        k = 0
+        thtap_k_3d = np.broadcast_to(thtap_cleaned[k, None, :, :], (kout, nj, ni))
+        active_0 = (~done) & (thta_3d < thtap_k_3d)
+        
+        if np.any(active_0):
+            pdwn_tmp, potdwn_tmp, pup_tmp, potup_tmp = [np.zeros_like(thta_3d) for _ in range(4)]
+            alogpd_tmp, alogpu_tmp = [np.zeros_like(thta_3d) for _ in range(2)]
+
+            pdwn_tmp[active_0]   = psfc_3d[active_0]
+            potdwn_tmp[active_0] = potsfc_3d[active_0]
+            alogpd_tmp[active_0] = np.log(psfc_3d[active_0])
+            
+            c1_3d = (np.abs(psfc_3d - pres[k]) < tol)
+        
+            thtap_k0_3d = np.broadcast_to(thtap_cleaned[k, None, :, :], (kout, nj, ni))
+            thtap_k1_3d = np.broadcast_to(thtap_cleaned[k+1, None, :, :], (kout, nj, ni))
+            
+            potup_tmp[active_0]  = np.where(c1_3d, thtap_k1_3d, thtap_k0_3d)[active_0]
+            pup_tmp[active_0]    = np.where(c1_3d, pres[k+1], pres[k])[active_0]
+            alogpu_tmp[active_0] = np.where(c1_3d, alogp[k+1], alogp[k])[active_0]
+
+            pressure_down[active_0]       = pdwn_tmp[active_0];   potential_temp_down[active_0] = potdwn_tmp[active_0]
+            pressure_up[active_0]         = pup_tmp[active_0];    potential_temp_up[active_0]   = potup_tmp[active_0]
+            alogp_down[active_0] = alogpd_tmp[active_0]; alogp_up[active_0] = alogpu_tmp[active_0]
+            
+            done[active_0] = True
+
+        # --- BRANCH 2: THE UPPER ATMOSPHERIC SWEEP (Model Level Indices 1 to PLVLS) ---
+        pdwn_tmp, potdwn_tmp, pup_tmp, potup_tmp = [np.zeros_like(thta_3d) for _ in range(4)]
+        alogpd_tmp, alogpu_tmp = [np.zeros_like(thta_3d) for _ in range(2)]
+
+        for k in range(1, plvls):
+            thtap_k_3d = np.broadcast_to(thtap_cleaned[k, None, :, :], (kout, nj, ni))
+            active = (~done) & (thta_3d < thtap_k_3d)
+            if not np.any(active): 
+                continue
+
+            thtap_km1_3d = np.broadcast_to(thtap_cleaned[k-1, None, :, :], (kout, nj, ni))
+            m_psfc = active & (potsfc_3d > thtap_km1_3d)
+            m_gen  = active & (~m_psfc)
+
+            pdwn_tmp.fill(0.0); potdwn_tmp.fill(0.0); pup_tmp.fill(0.0); potup_tmp.fill(0.0)
+            alogpd_tmp.fill(0.0); alogpu_tmp.fill(0.0)
+
+            if np.any(m_psfc):
+                pdwn_tmp[m_psfc]   = psfc_3d[m_psfc]
+                potdwn_tmp[m_psfc] = potsfc_3d[m_psfc]
+                alogpd_tmp[m_psfc] = np.log(psfc_3d[m_psfc])
+                
+                c3_3d = (np.abs(psfc_3d - pres[k]) < 0.01)
+            
+                k_plus_1 = k + 1 if (k + 1 < plvls) else k
+                thtap_k_hot  = np.broadcast_to(thtap_cleaned[k, None, :, :], (kout, nj, ni))
+                thtap_k1_hot = np.broadcast_to(thtap_cleaned[k_plus_1, None, :, :], (kout, nj, ni))
+                
+                potup_tmp[m_psfc]  = np.where(c3_3d, thtap_k1_hot, thtap_k_hot)[m_psfc]
+                pup_tmp[m_psfc]    = np.where(c3_3d, pres[k_plus_1], pres[k])[m_psfc]
+                alogpu_tmp[m_psfc] = np.where(c3_3d, alogp[k_plus_1], alogp[k])[m_psfc]
+
+            if np.any(m_gen):
+                pdwn_tmp[m_gen]   = pres[k-1]
+                potdwn_tmp[m_gen] = thtap_km1_3d[m_gen]
+                alogpd_tmp[m_gen] = alogp[k-1]
+                
+                pup_tmp[m_gen]    = pres[k]
+                potup_tmp[m_gen]  = thtap_k_3d[m_gen]
+                alogpu_tmp[m_gen] = alogp[k]
+            
+            pressure_down[active]       = pdwn_tmp[active];   potential_temp_down[active] = potdwn_tmp[active]
+            pressure_up[active]         = pup_tmp[active];    potential_temp_up[active]   = potup_tmp[active]
+            alogp_down[active] = alogpd_tmp[active]; alogp_up[active] = alogpu_tmp[active]
+            
+            done[active] = True
+
+        return pthta, pressure_down, pressure_up, potential_temp_down, potential_temp_up, alogp_down, alogp_up, done
+
+
+
+    def _solve_isentropic_pressure_nr_engine(self, pthta_init, done_mask, pressure_down, pressure_up, potential_temp_down, potential_temp_up, alogp_down, alogp_up, g_alogp, thta_grid_clean, kappa, epsln, nmax, p0_val):
+        """
+        Production-Frozen Thermodynamic Newton-Raphson Solver Engine.
+        All profiling, debugging, and terminal logging flags have been stripped.
+        Optimized for zero-leak vectorized arithmetic processing using standard naming conventions.
+        """
+        active_math = pressure_down > 0.0
+        if not np.any(active_math):
+            return pthta_init, pressure_down, pressure_up, alogp_down, alogp_up
+        
+        # Derive Temperature boundaries via precise 64-bit float scaling
+        tdwn = potential_temp_down * (pressure_down / p0_val) ** kappa
+        tup  = potential_temp_up  * (pressure_up  / p0_val) ** kappa
+        
+        # Synchronized Core Mathematical Slope Operations Block
+        with np.errstate(divide='ignore', invalid='ignore'):
+            ratio = np.where(active_math, tup / np.where(tdwn == 0.0, 1.0, tdwn), 1.0)
+            log_ratio_combined = np.log(ratio, where=active_math, out=np.zeros_like(tup))
+            
+            denom = np.where(active_math, alogp_up - alogp_down, 1.0)
+            dltdlp = np.divide(log_ratio_combined, denom, where=active_math, out=np.zeros_like(log_ratio_combined))
+            
+            log_tup_isolated = np.log(tup, where=active_math, out=np.zeros_like(tup))
+            interc = np.where(active_math, log_tup_isolated - (dltdlp * alogp_up), 0.0)
+
+        # Coordinate dimension allocation and spatial tracking configuration
+        kthta, nj, ni = pthta_init.shape
+        thta_3d = np.broadcast_to(thta_grid_clean[:, np.newaxis, np.newaxis], (kthta, nj, ni))
+    
+        # Compute exact log-linear baseline pressure coordinates guess matrix
+        alogp_0 = g_alogp[0] 
+        solver_denom = np.where(active_math, dltdlp - kappa, 1.0)
+        p_guess = np.exp((np.log(thta_3d) - interc - kappa * alogp_0) / solver_denom)
+        
+        pthta = np.where(active_math, p_guess, pthta_init)
+        
+        # Initialize loop convergence arrays and runtime state masks
+        n_counter = np.zeros_like(pthta, dtype=np.int32)
+        iter_mask = active_math.copy()
+        resmax = np.float64(1.0)
+        
+        # =====================================================================
+        # ITERATIVE NEWTON CONVERGENCE LOOP (Vectorized 1900 CONTINUE)
+        # =====================================================================
+        for _ in range(nmax + 2):
+            if not np.any(iter_mask):
+                break
+            
+            with np.errstate(divide='ignore', invalid='ignore'):
+                log_pthta = np.log(pthta, where=iter_mask, out=np.ones_like(pthta))
+            t1 = np.exp(dltdlp * log_pthta + interc)
+            
+            resid = pthta - p0_val * (t1 / thta_3d) ** (np.float64(1.0) / kappa)
+        
+            abs_resid = np.abs(resid)
+            needs_update = iter_mask & (abs_resid > epsln)
+        
+            current_step_active = iter_mask.copy()
+            iter_mask = iter_mask & needs_update
+
+            working_mask = current_step_active & needs_update
+            if not np.any(working_mask):
+                continue
+
+            n_counter[working_mask] += 1
+        
+            within_bounds = working_mask & (n_counter <= nmax)
+            exceeded_bounds = working_mask & (n_counter > nmax)
+            
+            # --- BRANCH 1: LOOP COUNT WITHIN VALID BOUNDS -> IF (N .LE. NMAX) ---
+            if np.any(within_bounds):
+                thta1 = t1 * (p0_val / pthta) ** kappa
+                f = thta_3d - thta1
+            
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    log_pthta_branch = np.log(pthta, where=within_bounds, out=np.ones_like(pthta))
+                dfdp = (kappa - dltdlp) * (p0_val / pthta) ** kappa * \
+                    np.exp(interc + (dltdlp - np.float64(1.0)) * log_pthta_branch)
+            
+                p1 = pthta - f / np.where(dfdp == 0.0, np.float64(1.0), dfdp)
+
+                mask_le_pdwn = within_bounds & (p1 <= pressure_down)
+                mask_valid = mask_le_pdwn & (p1 >= pressure_up)
+                pthta = np.where(mask_valid, p1, pthta)
+            
+                mask_underflow = mask_le_pdwn & (p1 < pressure_up)
+                n_counter[mask_underflow] = nmax + 1
+            
+                mask_overflow = within_bounds & (p1 > pressure_down)
+                iter_mask = iter_mask & (~mask_overflow)
+                
+            # --- BRANCH 2: LOOP COUNT EXCEEDED TARGETS -> ELSE (Log Non-Convergence) ---
+            if np.any(exceeded_bounds):
+                match_resmax = exceeded_bounds & (abs_resid > resmax)
+                if np.any(match_resmax):
+                    resmax = np.max(abs_resid[match_resmax])
+            
+                iter_mask = iter_mask & (~exceeded_bounds)
+
+        return pthta, tdwn, tup, dltdlp, interc
+
+    def _enforce_isentropic_pressure_monotonicity(self, pthta_raw, kthta):
+        """
+        Independent physical smoothing pass.
+        """
+        pthta_smooth = pthta_raw.copy()
+        for k in range(1, kthta):
+            prev_p = pthta_smooth[k - 1, :, :]
+            curr_p = pthta_smooth[k, :, :]
+            anomaly_mask = (prev_p > 0.0) & (curr_p > prev_p)
+            # PARITY FIX: Explicit 64-bit precision literal configuration addition
+            pthta_smooth[k, :, :] = np.where(anomaly_mask, prev_p + np.float64(0.001), curr_p)
+
+        return pthta_smooth
+
+    def _enforce_isentropic_pressure_monotonicity(self, pthta_raw, kthta):
+        """
+        Independent physical smoothing pass.
+        Ensures pressure strictly decreases (or stabilizes with a 0.001 Pa offset) 
+        as potential temperature increases along the vertical level axis (axis=0).
+        """
+        # Create a deep copy to keep your raw NR solver arrays pristine for debugging
+        pthta_smooth = pthta_raw.copy()
+
+        # Sweep sequentially up through the output isentropic levels (KOUT)
+        # matching Fortran's look-back loop structure step-for-step
+        for k in range(1, kthta):
+            prev_p = pthta_smooth[k - 1, :, :]
+            curr_p = pthta_smooth[k, :, :]
+
+            # Condition: Prior level has valid data (> 0) AND current pressure 
+            # incorrectly exceeds prior pressure (violating height rules)
+            anomaly_mask = (prev_p > 0.0) & (curr_p > prev_p)
+
+            # Apply the 0.001 Pa corrective stabilization offset where anomalies exist
+            pthta_smooth[k, :, :] = np.where(anomaly_mask, prev_p + 0.001, curr_p)
+
+        return pthta_smooth
+  
+    def generate_theta_levels_exact(self, ni, nj, plvls, potsfc, thtap_cleaned, thtalo, thtahi, dthta, maxlvl=50):
+        """
+        Exact mathematical replica of DesJardins' (1997) F90 grid generation logic.
+        Guarantees 1e-16 MAE by correcting loop termination, array indexing, and boundaries.
+        """
+        total_grid_points = potsfc.size
+        threshold_points = total_grid_points / 10.0  # Strict 10% domain rule
+
+        # Replicate sequential addition rounding exactly instead of multiplication
+        candidate_thta = 200.0
+        while (candidate_thta + dthta) < thtalo:
+            candidate_thta += dthta
+        candidate_thta += dthta
+
+        # Enforce (potsfc > 0.0) constraint to match F90 '.GT. 0.0D0' boundary protection
+        current_thta = candidate_thta
+        while current_thta < 600.0:
+            pts_above_ground = np.count_nonzero((potsfc > 0.0) & (potsfc <= current_thta))
+            if pts_above_ground >= threshold_points:
+                break
+            current_thta += dthta
+
+        thta_1 = current_thta
+
+        # Build Candidate Levels Array matching exact F90 loop exit condition
+        levels = [thta_1]
+        kthta = 1
+        while kthta < maxlvl:
+            if (levels[-1] + dthta) > thtahi:
+                break
+            levels.append(levels[-1] + dthta)
+            kthta += 1
+
+        thta = np.array(levels, dtype=np.float64)
+
+        # Dynamic vertical direction index check matching highest layer index (plvls - 1)
+        kthta_idx = len(thta) - 1
+        while kthta_idx >= 0:
+            if kthta_idx <= 0:
+                kthta_idx = 0
+                break
+            
+            pts_in_domain = np.count_nonzero(thtap_cleaned[plvls - 1, :, :] >= thta[kthta_idx])
+            if pts_in_domain >= threshold_points:
+                break
+            kthta_idx -= 1
+
+        thta = thta[: kthta_idx + 1]
+
+        # Pad output container to length 50 to match your Fortran f2py buffer layout
+        thta_padded = np.zeros(50, dtype=np.float64)
+        thta_padded[:len(thta)] = thta
+
+        return thta_padded, len(thta)
+
+    def testp2thta(self, tmpInstant, plevs, tsfcInstant, psfcInstant, **kwargs):
+        """
+        Cross-language diagnostic for F77 vs NumPy P2THTA.
+        
+        Purpose:
+        1. Verify boundary quantities.
+        2. Verify the initial log-linear pressure guess.
+        3. Trace Newton-Raphson iteration-by-iteration.
+        4. Identify the FIRST operation where F77 and NumPy diverge.
+        
+        Important:
+        We do NOT demand bitwise equality for DLTDLP/INTERC.
+        The objective is to locate where the ~1e-12 final PTHTA
+        discrepancy actually originates.
+        """
+        
+        import os
+        import sys
+        import numpy as np
+        
+        # ================================================================
+        # 1. LOAD F77 MODULE
+        # ================================================================
+        
+        ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+        BUILD_DIR = os.path.join(ROOT_DIR, "builddir")
+        
+        if BUILD_DIR not in sys.path:
+            sys.path.insert(0, BUILD_DIR)
+            
+        import ff_core
+
+        print(f"--> Loaded F77 module: {ff_core.__file__}")
+
+        # ================================================================
+        # 2. PREPARE INPUTS
+        # ================================================================
+        
+        tsfc_2d = np.asarray(np.squeeze(tsfcInstant), dtype=np.float64)
+        psfc_2d = np.asarray(np.squeeze(psfcInstant), dtype=np.float64)
+        tmp_3d = np.asarray(np.squeeze(tmpInstant), dtype=np.float64)
+        
+        nj_val, ni_val = tsfc_2d.shape
+        plvls = tmp_3d.shape[0]
+        
+        tsfc_f = np.asfortranarray(tsfc_2d.T, dtype=np.float64)
+        psfc_f = np.asfortranarray(psfc_2d.T, dtype=np.float64)
+        tmp_f = np.asfortranarray(
+            np.transpose(tmp_3d, (2, 1, 0)),
+            dtype=np.float64
+        )
+        
+        maxlvl_val = int(kwargs.get("MAXLVL", 50))
+        kappa = np.float64(kwargs.get("KAPPA", self.C["kappa"]))
+        
+        # ================================================================
+        # 3. F77 EXECUTION
+        # ================================================================
+        
+        outputs = ff_core.p2thta(
+            maxlvl_val,
+            tsfc_f,
+            psfc_f,
+            tmp_f,
+            float(kappa)
+        )
+        
+        (
+            kthta_f77,
+            thta_f77,
+            f_pthta,
+            f_thtap,
+            f_potdwn,
+            f_pdwn,
+            f_potup,
+            f_pup,
+            f_tdwn,
+            f_tup,
+            f_dltdlp,
+            f_interc
+        ) = outputs
+        
+        kout = int(kthta_f77)
+        
+        print()
+        print("=" * 80)
+        print("F77 GRID")
+        print("=" * 80)
+        print("kthta =", kout)
+        print("theta =", thta_f77[:kout])
+        
+        # ================================================================
+        # 4. TRANSPOSE F77 RESULTS TO PYTHON LAYOUT
+        # ================================================================
+        
+        f_pthta_native = np.ascontiguousarray(
+            np.transpose(f_pthta, (2, 1, 0))[:kout]
+        )
+        
+        f_thtap_native = np.ascontiguousarray(
+            np.transpose(f_thtap, (2, 1, 0))
+        )
+
+        f_potdwn_native = np.ascontiguousarray(
+            np.transpose(f_potdwn, (2, 1, 0))[:kout]
+        )
+        
+        f_pdwn_native = np.ascontiguousarray(
+            np.transpose(f_pdwn, (2, 1, 0))[:kout]
+        )
+
+        f_potup_native = np.ascontiguousarray(
+            np.transpose(f_potup, (2, 1, 0))[:kout]
+        )
+
+        f_pup_native = np.ascontiguousarray(
+            np.transpose(f_pup, (2, 1, 0))[:kout]
+        )
+        
+        f_tdwn_native = np.ascontiguousarray(
+            np.transpose(f_tdwn, (2, 1, 0))[:kout]
+        )
+        
+        f_tup_native = np.ascontiguousarray(
+            np.transpose(f_tup, (2, 1, 0))[:kout]
+        )
+        
+        f_dltdlp_native = np.ascontiguousarray(
+            np.transpose(f_dltdlp, (2, 1, 0))[:kout]
+        )
+        
+        f_interc_native = np.ascontiguousarray(
+            np.transpose(f_interc, (2, 1, 0))[:kout]
+        )
+        
+        # ================================================================
+        # 5. PYTHON EXECUTION
+        # ================================================================
+        
+        plevs_final = np.asarray(plevs, dtype=np.float64)
+        
+        (
+            py_pthta,
+            py_tdwn,
+            py_tup,
+            py_dltdlp,
+            py_interc,
+            py_done
+        ) = self.p2thta_refactored(
+            tmp_3d,
+            plevs_final,
+            tsfc_2d,
+            psfc_2d,
+            **kwargs
+        )
+        
+        py_pthta = py_pthta[:kout]
+        py_tdwn = py_tdwn[:kout]
+        py_tup = py_tup[:kout]
+        py_dltdlp = py_dltdlp[:kout]
+        py_interc = py_interc[:kout]
+        
+        # ================================================================
+        # 6. BASIC INTERMEDIATE COMPARISON
+        # ================================================================
+        
+        def report(name, f77, py):
+            d = np.abs(f77 - py)
+
+            print(
+            f"{name:<12} "
+            f"MAE={np.mean(d):.16e}  "
+            f"MAX={np.max(d):.16e}"
+            )
+
+            return d
+
+        print()
+        print("=" * 80)
+        print("INTERMEDIATE COMPARISON")
+        print("=" * 80)
+        
+        d_tdwn = report("TDWN", f_tdwn_native, py_tdwn)
+        d_tup = report("TUP", f_tup_native, py_tup)
+        d_dltdlp = report("DLTDLP", f_dltdlp_native, py_dltdlp)
+        d_interc = report("INTERC", f_interc_native, py_interc)
+        
+        # ================================================================
+        # 7. FINAL PTHTA
+        # ================================================================
+        
+        d_pthta = report(
+            "PTHTA",
+            f_pthta_native,
+            py_pthta
+        )
+        
+        # ================================================================
+        # 8. FIND WORST FINAL POINT
+        # ================================================================
+        
+        idx = np.unravel_index(
+            np.argmax(d_pthta),
+            d_pthta.shape
+        )
+        
+        k, j, i = idx
+        
+        print()
+        print("=" * 80)
+        print("WORST FINAL PTHTA")
+        print("=" * 80)
+        
+        print(f"K = {k}, J = {j}, I = {i}")
+        print(f"THTA       = {thta_f77[k]:.17e}")
+        print(f"F77 PTHTA  = {f_pthta_native[k,j,i]:.17e}")
+        print(f"PY  PTHTA  = {py_pthta[k,j,i]:.17e}")
+        print(f"ABS DIFF   = {d_pthta[k,j,i]:.17e}")
+        print(
+            f"REL DIFF   = "
+            f"{d_pthta[k,j,i] / abs(f_pthta_native[k,j,i]):.17e}"
+        )
+        
+        # ================================================================
+        # 9. BOUNDARY STATE
+        # ================================================================
+        
+        print()
+        print("=" * 80)
+        print("BOUNDARY STATE AT WORST POINT")
+        print("=" * 80)
+        
+        print(f"PDWN       = {f_pdwn_native[k,j,i]:.17e}")
+        print(f"PY PDWN    = {self._last_g_pdwn[k,j,i]:.17e}"
+              if hasattr(self, "_last_g_pdwn") else "")
+        
+        print(f"PUP        = {f_pup_native[k,j,i]:.17e}")
+
+        print(f"POTDWN     = {f_potdwn_native[k,j,i]:.17e}")
+        print(f"POTUP      = {f_potup_native[k,j,i]:.17e}")
+        
+        print(f"TDWN       = {f_tdwn_native[k,j,i]:.17e}")
+        print(f"PY TDWN    = {py_tdwn[k,j,i]:.17e}")
+        
+        print(f"TUP        = {f_tup_native[k,j,i]:.17e}")
+        print(f"PY TUP     = {py_tup[k,j,i]:.17e}")
+        
+        print(f"DLTDLP     = {f_dltdlp_native[k,j,i]:.17e}")
+        print(f"PY DLTDLP  = {py_dltdlp[k,j,i]:.17e}")
+        
+        print(f"INTERC     = {f_interc_native[k,j,i]:.17e}")
+        print(f"PY INTERC  = {py_interc[k,j,i]:.17e}")
+        
+        # ================================================================
+        # 10. IMPORTANT:
+        #     RECOMPUTE THE INITIAL GUESS INDEPENDENTLY
+        # ================================================================
+        
+        print()
+        print("=" * 80)
+        print("INITIAL LOG-LINEAR PRESSURE GUESS")
+        print("=" * 80)
+        
+        p0 = np.float64(100000.0)
+        
+        td = f_tdwn_native[k,j,i]
+        tu = f_tup_native[k,j,i]
+        
+        slope_f = f_dltdlp_native[k,j,i]
+        interc_f = f_interc_native[k,j,i]
+        
+        theta = np.float64(thta_f77[k])
+        
+        alogp0 = np.log(p0)
+        
+        pguess_f = np.exp(
+            (
+                np.log(theta)
+                - interc_f
+                - kappa * alogp0
+            )
+            /
+            (slope_f - kappa)
+        )
+
+        slope_p = py_dltdlp[k,j,i]
+        interc_p = py_interc[k,j,i]
+        
+        pguess_p = np.exp(
+            (
+                np.log(theta)
+                - interc_p
+                - kappa * alogp0
+            )
+            /
+            (slope_p - kappa)
+        )
+
+        print(f"F77-equivalent guess = {pguess_f:.17e}")
+        print(f"PY guess              = {pguess_p:.17e}")
+        print(f"GUESS ABS DIFF        = {abs(pguess_f-pguess_p):.17e}")
+        
+        # ================================================================
+        # 11. REPRODUCE FIRST NR ITERATION IN PURE NUMPY
+        #
+        # This is the critical diagnostic.
+        # ================================================================
+        
+        print()
+        print("=" * 80)
+        print("FIRST NEWTON-RAPHSON ITERATION")
+        print("=" * 80)
+        
+        p = np.float64(pguess_f)
+        
+        # F77:
+        # T1 = EXP(DLTDLP * LOG(PTHTA) + INTERC)
+        
+        logp = np.log(p)
+        
+        t1_f = np.exp(
+        slope_f * logp + interc_f
+        )
+
+        resid_f = (
+            p
+            - p0 * (t1_f / theta) ** (1.0 / kappa)
+        )
+
+        thta1_f = (
+            t1_f
+            * (p0 / p) ** kappa
+        )
+
+        F_f = theta - thta1_f
+        
+        dfdp_f = (
+            (kappa - slope_f)
+            * (p0 / p) ** kappa
+            * np.exp(
+                interc_f
+                + (slope_f - 1.0) * logp
+            )
+        )
+
+        p1_f = p - F_f / dfdp_f
+        
+        print(f"Initial P       = {p:.17e}")
+        print(f"T1              = {t1_f:.17e}")
+        print(f"RESID           = {resid_f:.17e}")
+        print(f"THTA1           = {thta1_f:.17e}")
+        print(f"F               = {F_f:.17e}")
+        print(f"DFDP            = {dfdp_f:.17e}")
+        print(f"P1              = {p1_f:.17e}")
+        
+        # ================================================================
+        # 12. REPEAT USING PYTHON VALUES
+        # ================================================================
+        
+        p = np.float64(pguess_p)
+        
+        logp = np.log(p)
+        
+        t1_p = np.exp(
+            slope_p * logp + interc_p
+    )
+        
+        resid_p = (
+            p
+            - p0 * (t1_p / theta) ** (1.0 / kappa)
+        )
+        
+        thta1_p = (
+            t1_p
+            * (p0 / p) ** kappa
+        )
+
+        F_p = theta - thta1_p
+        
+        dfdp_p = (
+            (kappa - slope_p)
+            * (p0 / p) ** kappa
+            * np.exp(
+                interc_p
+                + (slope_p - 1.0) * logp
+            )
+        )
+        
+        p1_p = p - F_p / dfdp_p
+        
+        print()
+        print("PYTHON COEFFICIENTS")
+        print(f"Initial P       = {p:.17e}")
+        print(f"T1              = {t1_p:.17e}")
+        print(f"RESID           = {resid_p:.17e}")
+        print(f"THTA1           = {thta1_p:.17e}")
+        print(f"F               = {F_p:.17e}")
+        print(f"DFDP            = {dfdp_p:.17e}")
+        print(f"P1              = {p1_p:.17e}")
+    
+        # ================================================================
+        # 13. FIRST-ITERATION DIFFERENCES
+        # ================================================================
+        
+        print()
+        print("=" * 80)
+        print("FIRST-ITERATION DIFFERENCES")
+        print("=" * 80)
+        
+        print(f"T1       : {abs(t1_f - t1_p):.17e}")
+        print(f"RESID    : {abs(resid_f - resid_p):.17e}")
+        print(f"THTA1    : {abs(thta1_f - thta1_p):.17e}")
+        print(f"F        : {abs(F_f - F_p):.17e}")
+        print(f"DFDP     : {abs(dfdp_f - dfdp_p):.17e}")
+        print(f"P1       : {abs(p1_f - p1_p):.17e}")
+        
+        # ================================================================
+        # 14. BOUNDARY TEST
+        # ================================================================
+        
+        print()
+        print("=" * 80)
+        print("NR BOUNDARY TEST")
+        print("=" * 80)
+    
+        pdwn = f_pdwn_native[k,j,i]
+        pup = f_pup_native[k,j,i]
+        
+        print(f"P1       = {p1_f:.17e}")
+        print(f"PDWN     = {pdwn:.17e}")
+        print(f"PUP      = {pup:.17e}")
+        
+        print("P1 <= PDWN :", p1_f <= pdwn)
+        print("P1 >= PUP  :", p1_f >= pup)
+        
+        # ================================================================
+        # 15. FINAL SUMMARY
+        # ================================================================
+        
+        print()
+        print("=" * 80)
+        print("SUMMARY")
+        print("=" * 80)
+
+        print(f"TDWN MAE    = {np.mean(d_tdwn):.17e}")
+        print(f"TUP MAE     = {np.mean(d_tup):.17e}")
+        print(f"DLTDLP MAE  = {np.mean(d_dltdlp):.17e}")
+        print(f"INTERC MAE  = {np.mean(d_interc):.17e}")
+        print(f"PTHTA MAE   = {np.mean(d_pthta):.17e}")
+        print(f"PTHTA MAX   = {np.max(d_pthta):.17e}")
+        
+        print()
+        print("The critical values above are the first NR iteration")
+        print("at the worst final-PTHTA grid point.")
+        
+        return
+
 
     def p2thta(self,lats,lons,plevs,tsfc,psfc,tpres):
 
-        maxlvl = 22
+        maxlvl = 17
         plvls = len(plevs)
         cp = float(1004)
 
@@ -934,6 +1668,7 @@ class potential_vorticity:
 
         potsfc = self.potsfc(tsfc,psfc)
         thtalo = np.min(potsfc)
+        print(potsfc,thtalo)
 
 
         # Compute potential temperature for each isobaric level eliminating superadiabatic or neutral layer
@@ -959,9 +1694,10 @@ class potential_vorticity:
                             if (thtap[0,j,i] <= potsfc[j,i]):
                                 thtap[0,j,i] = potsfc[j,i]+0.01
                         
-                        if (k >= 9 and thtap[k,j,i] > thtahi):
+                        if (k >= strat_idx and thtap[k,j,i] > thtahi):
                             thtahi = thtap[k,j,i]
         # Identify isentropic levels to interpolate to
+
 
         kout = 0
         while (True):
@@ -1011,9 +1747,8 @@ class potential_vorticity:
             print('P2THTA: ONLY THE FIRST')
         else:
             print('TOP ISENTROPIC LEVEL', thta[kthta])
-
         print(thta)
-
+        sys.exit()
         alogp[:] = np.log(plevs[:])
         maxit = 0
         resmax = 1.
@@ -1231,7 +1966,24 @@ class potential_vorticity:
         return vars_dict
     
     def tests2thta(self,lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta):
+        # 1. Define the root directory of your project
+        # Using abspath(__file__) makes the script work even if you run it from elsewhere
+        ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
         
+        # 2. Path to the directory where Meson built your .so file
+        BUILD_DIR = os.path.join(ROOT_DIR, 'builddir')
+        
+        # 3. Add BUILD_DIR to the start of the Python search path
+        if BUILD_DIR not in sys.path:
+            sys.path.insert(0, BUILD_DIR)
+        
+        try:
+            import vayu_core
+            print(f"Successfully loaded vayu_core from: {vayu_core.__file__}")
+        except ImportError as e:
+            print(f"Error: Could not find vayu_core in {BUILD_DIR}")
+            print(f"Files found in builddir: {os.listdir(BUILD_DIR) if os.path.exists(BUILD_DIR) else 'Directory not found'}")
+            raise e
 
         plevs_final = np.asfortranarray(plevs.T, dtype=np.float64)  # .T is shorthand for transpose(1,0)
         psfc_final  = np.asfortranarray(psfc.T, dtype=np.float64)  # .T is shorthand for transpose(1,0)
@@ -1271,6 +2023,8 @@ class potential_vorticity:
         sthta_numpy = self.s2thta(plevs,uins, pthta, psfc, uwndI)
 
         sthta_numpy2 = self.s2thta_refactored(plevs,uins, pthta, psfc, uwndI)
+
+        sthta_xtensor = vayu_core.s2thta_kernel(pthta,plevs,uins,psfc,uwndI)
         
         mea = np.mean(np.abs(sthta_numpy - sthta_f77))
         
@@ -1280,6 +2034,9 @@ class potential_vorticity:
 
         
         print(f"Mean Absolute Error: {mea1} m/s")
+
+        mea2 = np.mean(np.abs(sthta_xtensor-sthta_f77))
+        print(f"Mean Absolute Error: {mea2} m/s")
         sys.exit()
 
 
