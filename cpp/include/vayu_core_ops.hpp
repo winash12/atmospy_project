@@ -2,7 +2,7 @@
 #define VAYU_CORE_OPS_HPP
 
 #include <xtensor/containers/xarray.hpp>
-#include <utility>
+#include <tuple> // Replaced <utility> with <tuple> for 5-element tracking
 
 // 1. Accelerated Horizontal Wind Vector Interpolation
 void s2thta_kernel(const xt::xarray<double>& pthta, 
@@ -12,8 +12,10 @@ void s2thta_kernel(const xt::xarray<double>& pthta,
                    const xt::xarray<double>& ssfc, 
                    xt::xarray<double>& sthta);
 
-// 2. Accelerated Fused Isentropic Coordinate Pressure Tracker
+// 2. Accelerated Fused Isentropic Coordinate Pressure Tracker (Refitted for 5-element audit)
+template <typename SubterraneanStrategy>
 std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
+    const SubterraneanStrategy& strategy,
     const xt::xarray<double>& thta_grid,
     const xt::xarray<double>& plevs,
     const xt::xarray<double>& potsfc,

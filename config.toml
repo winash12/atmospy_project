@@ -1,0 +1,34 @@
+# config.toml
+# =============================================================================
+#           PRAMANA VAYU (PV) GLOBAL SIMULATION CONFIGURATION
+# =============================================================================
+
+# Core Mathematical & Physical Constants
+[constants]
+CP           = 1004.0
+MD           = 28.9644
+R            = 8314.41
+G            = 9.80665
+P0           = 100000.0
+MISSING_DATA = -9999.0
+
+# Runtime Gateway & Solver Settings
+[solver_settings]
+MAXLVL          = 50
+DTHTA           = 5.0
+EPSLN           = 1.0
+NMAX            = 5
+MOORE_EPSILON   = 0.005
+STRATEGY_MODULE = "physics_strategies"
+STRATEGY_CLASS  = "LegacySAStrategy"
+# Platform Processing Extension Backends
+[library_settings]
+# Coordinate Pressure Tracker (p2thta) Backend Configuration
+# Options: "IsentropicNumPyBackend" or "IsentropicXtensorBackend"
+P2THTA_MODULE = "library_strategies"
+P2THTA_CLASS  = "IsentropicNumPyBackend"
+
+# Horizontal Wind Velocity Interpolator (s2thta) Backend Configuration
+# Options: "IsobaricVelocityNumPyBackend" or "IsobaricVelocityXtensorBackend"
+S2THTA_MODULE = "library_strategies"
+S2THTA_CLASS  = "IsobaricVelocityNumPyBackend"

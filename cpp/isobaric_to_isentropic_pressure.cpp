@@ -4,16 +4,18 @@
 #include <algorithm>
 #include <utility>
 #include "include/vayu_core_ops.hpp"
+#include "include/subterranean_strategies.hpp"
 
 const double HUNT_TOL = 0.001;
-
+template <typename SubterraneanStrategy>
 std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
-    const xt::xarray<double>& thta_grid,
-    const xt::xarray<double>& plevs,
-    const xt::xarray<double>& potsfc,
-    const xt::xarray<double>& psfc,
-    const xt::xarray<double>& thtap_cleaned,
-    double kappa, double epsln, int nmax, double p0_val, double missing_val)
+                                                                            const SubterraneanStrategy& strategy, // 1. Injected cleanly as a compile-time static template object
+                                                                            const xt::xarray<double>& thta_grid,
+                                                                            const xt::xarray<double>& plevs,
+                                                                            const xt::xarray<double>& potsfc,
+                                                                            const xt::xarray<double>& psfc,
+                                                                            const xt::xarray<double>& thtap_cleaned,
+                                                                            double kappa, double epsln, int nmax, double p0_val, double missing_val)
 {
     const size_t kthta = thta_grid.shape(0);
     const size_t nj    = potsfc.shape(0);
@@ -23,6 +25,8 @@ std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
     xt::xarray<double> log_plevs = xt::log(plevs);
     xt::xarray<double> pthta = xt::zeros<double>({kthta, nj, ni});
     xt::xarray<double> dltdlp_out = xt::zeros<double>({kthta, nj, ni});
+    // ADD THIS LINE RIGHT HERE:
+    xt::xarray<bool> done = xt::zeros<bool>({kthta, nj, ni});
 
 #pragma omp parallel for collapse(2)
     for (size_t j = 0; j < nj; ++j) {
@@ -36,8 +40,20 @@ std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
 
                 // --- BASELINE OUT OF BOUNDS CONTROLS ---
                 if (target_th < sfc_th) {
-                    pthta(k, j, i) = missing_val;
-                    continue;
+                  //pthta(k, j, i) = missing_val;
+                  strategy.apply(
+                                 k, j, i,           // Coordinate index trackers
+                                 target_th,         // Isentropic surface target value
+                                 sfc_p,             // Local column surface pressure (psfc)
+                                 sfc_th,            // Local column surface potential temperature (potsfc)
+                                 plevs,             // Vertical model pressure coordinates
+                                 pthta,             // Target pressure matrix (Modified in-place)
+                                 done,              // Boolean execution matrix tracker
+                                 p0_val,            // Reference pressure scale (P0)
+                                 kappa,             // Poisson constant allocation factor
+                                 missing_val        // Fallback default mask threshold
+                                 );
+                  continue;
                 }
                 if (target_th > top_th) {
                     pthta(k, j, i) = missing_val;
@@ -147,3 +163,22 @@ std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
     }
     return std::make_pair(pthta, dltdlp_out);
 }
+template std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
+    const pv_core::StrictLorenzStrategy&, const xt::xarray<double>&, const xt::xarray<double>&,
+    const xt::xarray<double>&, const xt::xarray<double>&, const xt::xarray<double>&,
+    double, double, int, double, double);
+
+template std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
+    const pv_core::KeithBrillStrategy&, const xt::xarray<double>&, const xt::xarray<double>&,
+    const xt::xarray<double>&, const xt::xarray<double>&, const xt::xarray<double>&,
+    double, double, int, double, double);
+
+template std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
+    const pv_core::ECMWFOrszagStrategy&, const xt::xarray<double>&, const xt::xarray<double>&,
+    const xt::xarray<double>&, const xt::xarray<double>&, const xt::xarray<double>&,
+    double, double, int, double, double);
+
+template std::pair<xt::xarray<double>, xt::xarray<double>> execute_p2thta_fused_core(
+    const pv_core::MissingValueStrategy&, const xt::xarray<double>&, const xt::xarray<double>&,
+    const xt::xarray<double>&, const xt::xarray<double>&, const xt::xarray<double>&,
+    double, double, int, double, double);
