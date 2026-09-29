@@ -1,0 +1,39 @@
+while (true) {
+                    double log_pthta = std::log(current_p);
+                    double t1 = std::exp(dltdlp * log_pthta + interc);
+                    double resid = current_p - p0_val * std::pow(t1 / target_th, 1.0 / kappa);
+
+                    // F77: IF (ABS(RESID) .GT. EPSLN) THEN ... ELSE (Implicit loop exit)
+                    if (std::abs(resid) <= epsln) {
+                        break; 
+                    }
+
+                    n_counter++;
+
+                    // F77: IF (N .LE. NMAX) THEN
+                    if (n_counter <= nmax) {
+                        double thta1 = t1 * std::pow(p0_val / current_p, kappa);
+                        double f_val = target_th - thta1;
+                        double df_dp = (kappa - dltdlp) * std::pow(p0_val / current_p, kappa) * 
+                                       std::exp(interc + (dltdlp - 1.0) * log_pthta);
+
+                        double p1 = current_p - f_val / ((df_dp == 0.0) ? 1.0 : df_dp);
+
+                        // F77: IF (P1 .LE. PDWN) THEN
+                        if (p1 <= p_down) {
+                            // F77: IF (P1 .GE. PUP) THEN
+                            if (p1 >= p_up) {
+                                current_p = p1;
+                                continue; // F77: GO TO 1900 (Jumps cleanly to next evaluation pass)
+                            } else {
+                                n_counter = nmax; // F77: N = NMAX (Forces ejection check on next fall-through loop pass)
+                            }
+                        }
+                        // Note: If p1 > p_down, it falls through without modifying current_p, matching F77 exactly
+                        
+                    } else {
+                        // F77: ELSE -> MAXIT = MAXIT + 1, GO TO 2100 (Eject entirely from solver block)
+                        break; 
+                    }
+                }
+                pthta(k, j, i) = current_p;

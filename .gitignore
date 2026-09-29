@@ -1,4 +1,20 @@
-# Emacs backup and auto-save files
-*~
-\#*\#
-.\#*
+# Compiled Binary Shared Objects Tracks
+*.so
+build/
+subprojects/
+
+# Dataset Caches and Plot Output Graphics
+*.nc
+*.grb
+*.grib
+*.idx
+*.png
+*.log
+
+# Workspace registers and local system overrides
+__pycache__/
+.venv/
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
