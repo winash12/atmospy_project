@@ -1,3 +1,7 @@
+mkdir -p .github/workflows
+
+# 2. Write the Continuous Integration YAML file directly inside that path
+cat << 'EOF' > .github/workflows/ci.yml
 name: Pramana Vayu High-Performance Engine CI Suite
 
 on:
@@ -23,7 +27,7 @@ jobs:
     - name: Install System Packaging Tools and OpenMP Core Compiler Runtime
       run: |
         sudo apt-get update
-        sudo apt-get install -y libomp-dev ninja-build gfortran libspatialindex-dev libgeos-dev
+        sudo apt-get install -y libopenmp-dev ninja-build gfortran libspatialindex-dev libgeos-dev
 
     - name: Install High-Performance Scientific Dependencies
       run: |
@@ -39,4 +43,5 @@ jobs:
     - name: Run Modular Tests Verification Suites Framework
       run: |
         pytest tests/ --ignore=.venv/
+EOF
 
