@@ -23,7 +23,21 @@ jobs:
     - name: Install System Packaging Tools and OpenMP Core Compiler Runtime
       run: |
         sudo apt-get update
-        sudo apt-get install -y libomp-dev ninja-build gfortran libspatialindex-dev libgeos-dev xtensor-dev xtensor-python-dev
+        sudo apt-get install -y libomp-dev ninja-build gfortran libspatialindex-dev libgeos-dev
+
+    - name: Install Statically Chained Header-Only xtensor Ecosystem (xtl, xtensor, xtensor-python)
+      run: |
+        # 1. Install xtl (Core foundation block)        
+        git clone --depth 1 https://github.com/xtensor-stack/xtl.git
+        sudo cp -r xtl/include/xtl /usr/local/include/
+
+        # 2. Install base xtensor core engine
+        git clone --depth 1 https://github.com/xtensor-stack/xtensor.git
+        sudo cp -r xtensor/include/xtensor /usr/local/include/
+        
+        # 3. Install xtensor-python binding layers
+        git clone --depth 1 https://github.com/xtensor-stack/xtensor-python.git
+        sudo cp -r xtensor-python/include/xtensor-python /usr/local/include/
 
     - name: Install High-Performance Scientific Dependencies
       run: |
@@ -38,4 +52,4 @@ jobs:
 
     - name: Run Modular Tests Verification Suites Framework
       run: |
-          pytest tests/ --ignore=.venv/ --suppress-no-test-exit-code
+        pytest tests/ --ignore=.venv/ --suppress-no-test-exit-code

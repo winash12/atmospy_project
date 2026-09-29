@@ -18,8 +18,9 @@ numpy_inc_path = run_command(py, [
 ], check: true).stdout().strip()
 
 # --- 3. Synchronized Header and Source JOSS Paths ---
-# Tells the compiler where to locate vayu_ops.hpp
+# Tells the compiler where to locate local source code and the manual header installations
 inc_vayu = include_directories('cpp/include')
+inc_local = include_directories('/usr/local/include') # Direct pointer to your manual git checkouts
 
 # FIXED: Aligned source paths straight into your clean JOSS cpp/src/ directory layout!
 sources = [
@@ -29,11 +30,10 @@ sources = [
 ]
 
 # --- 4. Resolve System Packaging Dependencies ---
+# FIXED: Dropped 'xtensor' and 'xtensor-python' dependencies to prevent pkg-config lookup crashes
 deps = [
     py_dep,
     dependency('pybind11'),
-    dependency('xtensor'),
-    dependency('xtensor-python'),
     dependency('openmp')
 ]
 
@@ -42,7 +42,7 @@ py.extension_module(
     'vayu_core',
     sources: sources,
     dependencies: deps,
-    include_directories: [inc_vayu],
+    include_directories: [inc_vayu, inc_local], # Tied manual headers safely into compile mapping
     cpp_args: [
         '-march=native',
         '-mavx2',
