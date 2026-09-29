@@ -51,6 +51,6 @@ jobs:
         cp build/vayu_core.*.so vayu/
 
 
-    - name: Run Modular Tests Verification Suites Framework
+     - name: Run Modular Tests Verification Suites Framework
       run: |
-        pytest tests/ --ignore=.venv/ --suppress-no-test-exit-code
+        pytest tests/ --ignore=.venv/ || [ $? -eq 5 ]
