@@ -1,0 +1,249 @@
+total 460060
+-rwxr-xr-x 1 aswin aswin       279 Dec  7  2020 myGridDef
+drwxr-xr-x 3 aswin aswin      4096 Aug 28  2023 shtns
+drwxr-xr-x 3 aswin aswin      4096 Oct  7  2023 frspharm
+-rwxr-xr-x 1 aswin aswin      7076 Jan  6  2024 XDailyMeanPV2021.py~
+-rwxr-xr-x 1 aswin aswin      7096 Jan  6  2024 XDailyMeanPV2021.py
+-rwxr-xr-x 1 aswin aswin       504 Nov 28  2024 noaa.cfg~
+-rw-rw-r-- 1 aswin aswin      1026 Jan  3  2026 errors
+-rw-rw-r-- 1 aswin aswin       119 Jan  3  2026 todo.txt~
+-rw-rw-r-- 1 aswin aswin       178 Jan  3  2026 todo.txt
+-rw-rw-r-- 1 aswin aswin      1324 Jan  8  2026 requirements.txt~
+drwxrwxr-x 2 aswin aswin      4096 Jan  8  2026 data
+-rw-rw-r-- 1 aswin aswin    167646 Jan  9  2026 2026-01-06 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    171354 Jan  9  2026 2026-01-06 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    169609 Jan  9  2026 2026-01-06 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    170745 Jan  9  2026 2026-01-06 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    162342 Jan  9  2026 2026-01-06 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin      1690 Jan  9  2026 xarray_download.py~
+-rw-rw-r-- 1 aswin aswin      2046 Jan  9  2026 xarray_download.py
+-rwxr-xr-x 1 aswin aswin      6162 Jan 11  2026 data.py
+-rw-rw-r-- 1 aswin aswin    163717 Jan 11  2026 2026-01-08 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    143352 Jan 11  2026 2026-01-08 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    142914 Jan 11  2026 2026-01-08 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    146687 Jan 11  2026 2026-01-08 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    137636 Jan 11  2026 2026-01-08 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin       955 Jan 11  2026 refactor.txt~
+-rw-rw-r-- 1 aswin aswin      4010 Jan 11  2026 refactor.txt
+-rw-rw-r-- 1 aswin aswin       728 Jan 16  2026 test_isentropic.py~
+-rw-rw-r-- 1 aswin aswin      1756 Jan 16  2026 test_isentropic.py
+-rw-rw-r-- 1 aswin aswin     12394 Jan 17  2026 tests2thta.py~
+-rw-rw-r-- 1 aswin aswin     12398 Jan 17  2026 tests2thta.py
+-rw-rw-r-- 1 aswin aswin      1067 Jan 18  2026 testfortran.f90~
+-rw-rw-r-- 1 aswin aswin      1694 Jan 18  2026 testfortran.f90
+-rw-rw-r-- 1 aswin aswin       557 Jan 18  2026 f2023_module.mod
+-rw-rw-r-- 1 aswin aswin      5752 Jan 18  2026 testfortran.o
+-rw-rw-r-- 1 aswin aswin      2200 Jan 18  2026 bitbycomp.f90~
+-rw-rw-r-- 1 aswin aswin     10218 Jan 18  2026 s2thta.f90~
+-rw-rw-r-- 1 aswin aswin        75 Jan 19  2026 grdsiz.inc~
+-rw-rw-r-- 1 aswin aswin        77 Jan 19  2026 grdsiz.inc
+-rw-rw-r-- 1 aswin aswin       263 Jan 19  2026 grid_mod.mod
+-rw-rw-r-- 1 aswin aswin      3115 Jan 19  2026 logs~
+-rw-rw-r-- 1 aswin aswin       907 Jan 19  2026 testp2thta.f90~
+-rw-rw-r-- 1 aswin aswin      1088 Jan 19  2026 testp2thta.f90
+-rwxr-xr-x 1 aswin aswin      9585 Jan 21  2026 datadownloader.py
+-rw-rw-r-- 1 aswin aswin    153325 Jan 21  2026 2026-01-18 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    152196 Jan 21  2026 2026-01-18 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    170455 Jan 21  2026 2026-01-18 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    147976 Jan 21  2026 2026-01-18 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    163047 Jan 21  2026 2026-01-18 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    160124 Jan 21  2026 2026-01-19 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    159094 Jan 21  2026 2026-01-19 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    158062 Jan 21  2026 2026-01-19 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    161578 Jan 21  2026 2026-01-19 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    166687 Jan 22  2026 2026-01-20 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    167715 Jan 22  2026 2026-01-20 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    165258 Jan 22  2026 2026-01-20 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    147228 Jan 22  2026 2026-01-20 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    167553 Jan 23  2026 2026-01-21 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    167482 Jan 23  2026 2026-01-21 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    168359 Jan 23  2026 2026-01-21 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    170500 Jan 23  2026 2026-01-21 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin     12888 Jan 24  2026 s2thta.o
+-rw-rw-r-- 1 aswin aswin      5145 Jan 24  2026 s2thta.f90
+-rw-rw-r-- 1 aswin aswin      5631 Jan 24  2026 interp_mod.f90~
+-rw-rw-r-- 1 aswin aswin      2908 Jan 24  2026 bitbycomp.f90
+-rw-rw-r-- 1 aswin aswin      3435 Jan 24  2026 interp_mod.f90
+-rw-rw-r-- 1 aswin aswin       580 Jan 24  2026 interp_mod.mod
+-rw-rw-r-- 1 aswin aswin      5376 Jan 24  2026 interp_mod.o
+-rwxrwxr-x 1 aswin aswin     25456 Jan 24  2026 bit_verify
+-rw-rw-r-- 1 aswin aswin       110 Jan 24  2026 test.sh~
+-rwxrwxr-x 1 aswin aswin       173 Jan 24  2026 test.sh
+-rw-rw-r-- 1 aswin aswin     11247 Jan 24  2026 build.log
+-rw-rw-r-- 1 aswin aswin    167685 Jan 25  2026 2026-01-23 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    167160 Jan 25  2026 2026-01-23 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    165812 Jan 25  2026 2026-01-23 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    146434 Jan 25  2026 2026-01-23 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    159062 Jan 25  2026 2026-01-23 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    143449 Jan 26  2026 2026-01-24 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    143322 Jan 26  2026 2026-01-24 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    143578 Jan 26  2026 2026-01-24 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    142832 Jan 26  2026 2026-01-24 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    156317 Jan 26  2026 2026-01-24 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin     11088 Jan 30  2026 legacy_s2thta.o
+-rw-rw-r-- 1 aswin aswin        56 Jan 30  2026 test.py~
+-rw-rw-r-- 1 aswin aswin      3234 Jan 30  2026 f23_sthta.f90~
+-rw-rw-r-- 1 aswin aswin       514 Jan 30  2026 interp_logic.mod
+-rw-rw-r-- 1 aswin aswin      5104 Jan 30  2026 f23_sthta.o
+-rw-rw-r-- 1 aswin aswin      5791 Jan 31  2026 legacy_s2thta.f90~
+-rwxrwxr-x 1 aswin aswin     51408 Jan 31  2026 interp_lib.cpython-312-x86_64-linux-gnu.so
+-rw-rw-r-- 1 aswin aswin      3436 Jan 31  2026 error.log
+-rw-rw-r-- 1 aswin aswin      4449 Jan 31  2026 f23_sthta.f90
+-rw-rw-r-- 1 aswin aswin      5688 Feb 19  2026 #legacy_s2thta.f90#
+-rw-rw-r-- 1 aswin aswin         0 Feb 19  2026 config.yaml~
+-rw-rw-r-- 1 aswin aswin      4524 Feb 19  2026 s2thta_f23.f90~
+-rw-rw-r-- 1 aswin aswin     21648 Feb 19  2026 s2thta_f23.o
+-rw-rw-r-- 1 aswin aswin    166788 Feb 19  2026 2026-02-16 00:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    167690 Feb 19  2026 2026-02-16 06:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    164411 Feb 19  2026 2026-02-16 12:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    164720 Feb 19  2026 2026-02-16 18:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    159407 Feb 19  2026 2026-02-16 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin         0 Feb 20  2026 vec_s2thta.f90~
+-rw-rw-r-- 1 aswin aswin      4240 Feb 20  2026 vec_s2thta.f90
+-rw-rw-r-- 1 aswin aswin     34928 Feb 20  2026 vec_s2thta.o
+-rwxrwxr-x 1 aswin aswin        89 Feb 20  2026 compile.sh~
+-rwxrwxr-x 1 aswin aswin     68176 Feb 20  2026 weather_lib.cpython-312-x86_64-linux-gnu.so
+-rw-rw-r-- 1 aswin aswin      4240 Feb 20  2026 s2thta_f23.f90
+-rwxrwxr-x 1 aswin aswin        89 Feb 20  2026 compile.sh
+-rw-rw-r-- 1 aswin aswin    145183 Feb 22  2026 2026-02-19 00:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    167926 Feb 22  2026 2026-02-19 06:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    165328 Feb 22  2026 2026-02-19 12:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    158563 Feb 22  2026 2026-02-19 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin     14888 Feb 22  2026 p2thta.o
+-rw-rw-r-- 1 aswin aswin    197607 Apr 27 10:22 pres_sfc_2026_17_3_00Z.nc
+-rw-rw-r-- 1 aswin aswin    318214 Apr 27 10:23 surface_temp_2026_17_3_00Z.nc
+-rw-rw-r-- 1 aswin aswin    318176 Apr 27 10:23 surface_uwnd_2026_17_3_00Z.nc
+-rw-rw-r-- 1 aswin aswin    318176 Apr 27 10:23 surface_vwnd_2026_17_3_00Z.nc
+-rw-rw-r-- 1 aswin aswin     15474 Apr 27 16:05 get_core.py
+-rwxrwxr-x 1 aswin aswin      6058 Apr 27 18:45 DaskXDailyMeanPV.py~
+drwxr-xr-x 2 aswin aswin      4096 Apr 27 19:03 Pictures
+-rw-rw-r-- 1 aswin aswin      1766 Apr 27 19:08 old_data_merge.py~
+-rw-rw-r-- 1 aswin aswin      1776 Apr 27 19:10 old_data_merge.py
+-rwxrwxr-x 1 aswin aswin      6058 Apr 27 19:23 DaskXDailyMeanPV_Core.py~
+-rw-rw-r-- 1 aswin aswin    161579 Apr 27 19:24 Grand Mean_spec360K.png
+-rwxrwxr-x 1 aswin aswin      6151 Apr 28 18:36 DaskXDailyMeanPV_Core.py
+-rw-rw-r-- 1 aswin aswin  12780434 Apr 28 20:48 pgb.2026031700.grb
+-rw-rw-r-- 1 aswin aswin    656576 Apr 28 20:49 flx.2026031700.grb
+-rw-rw-r-- 1 aswin aswin  12808239 Apr 28 20:50 pgb.2026031706.grb
+-rw-rw-r-- 1 aswin aswin    658041 Apr 28 20:50 flx.2026031706.grb
+-rw-rw-r-- 1 aswin aswin  12687089 Apr 28 20:51 pgb.2026031712.grb
+-rw-rw-r-- 1 aswin aswin    643365 Apr 28 20:51 flx.2026031712.grb
+-rw-rw-r-- 1 aswin aswin  12760352 Apr 28 20:53 pgb.2026031718.grb
+-rw-rw-r-- 1 aswin aswin    657728 Apr 28 20:53 flx.2026031718.grb
+-rw-rw-r-- 1 aswin aswin      1201 Apr 30 20:00 meson.build~
+drwxrwxr-x 2 aswin aswin      4096 May  5 18:11 inspect
+-rwxrwxr-x 1 aswin aswin     15278 May 10 16:06 pgb.2026031700.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1562 May 10 16:06 flx.2026031700.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin     15434 May 10 16:06 pgb.2026031706.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1566 May 10 16:06 flx.2026031706.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin     15434 May 10 16:06 pgb.2026031712.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1566 May 10 16:06 flx.2026031712.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin     15434 May 10 16:06 pgb.2026031718.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1566 May 10 16:06 flx.2026031718.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      7102 May 10 20:09 XTensorDailyMeanPv_Core.py~
+-rwxrwxr-x 1 aswin aswin      7114 May 11 10:41 XTensorDailyMeanPv_Core.py
+-rw-rw-r-- 1 aswin aswin    203395 May 11 10:45 2026-03-17 00:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    207856 May 11 10:46 2026-03-17 06:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    206933 May 11 10:46 2026-03-17 12:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    198636 May 11 10:46 2026-03-17 18:00:00 000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    187986 May 11 10:46 2026-03-17 9:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin       631 May 12 16:22 config_service.py
+-rwxrwxr-x 1 aswin aswin       636 May 15 10:52 fetch_core.csh~
+-rw-rw-r-- 1 aswin aswin  12643237 May 15 10:54 pgb.2026050700.grb
+-rw-rw-r-- 1 aswin aswin    653321 May 15 10:54 flx.2026050700.grb
+-rw-rw-r-- 1 aswin aswin      1803 May 15 10:54 merge.py~
+-rw-rw-r-- 1 aswin aswin  12750337 May 15 10:55 pgb.2026050706.grb
+-rw-rw-r-- 1 aswin aswin    640349 May 15 10:55 flx.2026050706.grb
+-rw-rw-r-- 1 aswin aswin  12477953 May 15 10:56 pgb.2026050712.grb
+-rw-rw-r-- 1 aswin aswin    641074 May 15 10:56 flx.2026050712.grb
+-rw-rw-r-- 1 aswin aswin  12738804 May 15 10:58 pgb.2026050718.grb
+-rw-rw-r-- 1 aswin aswin    657419 May 15 10:58 flx.2026050718.grb
+-rw-rw-r-- 1 aswin aswin 146868776 May 15 10:59 pvFile2.nc
+-rw-rw-r-- 1 aswin aswin       233 Jul 27 14:32 strategy_interface.py~
+-rw-rw-r-- 1 aswin aswin      6582 Jul 27 15:08 strategy_factory.py~
+-rw-rw-r-- 1 aswin aswin      1058 Jul 27 15:20 strategy_factory.py
+-rw-rw-r-- 1 aswin aswin       233 Jul 27 15:38 strategy_interface.py
+-rw-rw-r-- 1 aswin aswin      3558 Jul 28 21:11 physics_strategies.py~
+drwxrwxr-x 2 aswin aswin      4096 Jul 29 17:46 fortran_test
+-rw-rw-r-- 1 aswin aswin      5686 Jul 29 21:08 legacy_s2thta.f90
+-rw-rw-r-- 1 aswin aswin      9623 Aug  6 10:53 p2thta.f90~
+-rw-rw-r-- 1 aswin aswin      2156 Aug  6 12:14 config_loader.py~
+-rw-rw-r-- 1 aswin aswin      9411 Aug  6 15:44 p2thta.f90
+-rw-rw-r-- 1 aswin aswin     10978 Aug  6 19:37 crap~
+-rw-rw-r-- 1 aswin aswin      6036 Aug  6 19:38 crap
+-rw-rw-r-- 1 aswin aswin      4102 Aug  7 18:37 main_test.f90~
+-rw-rw-r-- 1 aswin aswin      3245 Aug  7 18:41 main_test.f90
+-rwxrwxr-x 1 aswin aswin     70888 Aug  7 18:47 debug_solver
+-rw-rw-r-- 1 aswin aswin      1367 Aug  8 18:50 requirements.txt
+-rw-rw-r-- 1 aswin aswin      6390 Aug 11 18:48 print2.py
+-rwxrwxr-x 1 aswin aswin     84741 Aug 14 20:15 PV_old.py~
+-rw-rw-r-- 1 aswin aswin     10634 Aug 20 16:24 p2thta_cut_old.f90
+-rw-rw-r-- 1 aswin aswin     11618 Aug 24 11:17 p2thta_cut.f90~
+-rw-rw-r-- 1 aswin aswin     11577 Aug 24 11:54 p2thta_cut.f90
+-rwxrwxr-x 1 aswin aswin     61728 Aug 24 11:58 ff_core.cpython-312-x86_64-linux-gnu.so
+-rw-rw-r-- 1 aswin aswin      1756 Aug 30 11:39 meson.build
+-rw-rw-r-- 1 aswin aswin        72 Aug 30 11:49 library_strategies.py~
+-rw-rw-r-- 1 aswin aswin      1721 Aug 30 11:50 library_strategies.py
+-rw-rw-r-- 1 aswin aswin      5157 Sep  3 11:47 physics_strategies.py
+-rw-rw-r-- 1 aswin aswin       668 Sep  7 12:50 config.toml~
+-rw-rw-r-- 1 aswin aswin     51674 Sep  8 16:01 thermodynamics.py~
+-rw-rw-r-- 1 aswin aswin     53147 Sep 14 18:29 thermodynamics.py
+-rw-rw-r-- 1 aswin aswin      3363 Sep 20 08:27 intersecting_with_earth.py~
+-rw-rw-r-- 1 aswin aswin     14141 Sep 21 18:07 rough.py~
+-rw-rw-r-- 1 aswin aswin      5338 Sep 21 20:34 new_rough.py~
+-rw-rw-r-- 1 aswin aswin      2273 Sep 21 20:43 new_rough.py
+-rw-rw-r-- 1 aswin aswin      4030 Sep 22 16:25 intersecting_with_earth.py
+-rw-rw-r-- 1 aswin aswin     61455 Sep 22 17:09 coordinate_transformers.py~
+-rw-rw-r-- 1 aswin aswin      4264 Sep 24 14:21 config_loader.py
+-rw-rw-r-- 1 aswin aswin       793 Sep 24 14:35 config.yaml
+-rw-rw-r-- 1 aswin aswin     65335 Sep 25 18:08 coordinate_transformers.py.backup
+-rw-rw-r-- 1 aswin aswin       988 Sep 25 18:23 thermostatics.py~
+-rw-rw-r-- 1 aswin aswin      6188 Sep 25 18:59 thermostatics.py
+drwxrwxr-x 2 aswin aswin      4096 Sep 26 15:06 images
+-rw-rw-r-- 1 aswin aswin        38 Sep 26 15:37 legacy_ddy.f90~
+-rw-rw-r-- 1 aswin aswin      1412 Sep 26 15:59 legacy_ddy.f90
+-rwxr-xr-x 1 aswin aswin     95262 Sep 26 17:33 PV.py
+-rw-rw-r-- 1 aswin aswin    161079 Sep 26 17:34 2026-03-17 00:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin    170011 Sep 26 17:42 2026-03-17 06:00:00 _spec360K.png
+-rw-rw-r-- 1 aswin aswin      3045 Sep 27 12:58 rough.py
+-rwxr-xr-x 1 aswin aswin     10396 Sep 27 13:43 XDailyMeanPV.py
+-rw-rw-r-- 1 aswin aswin    197525 Sep 27 13:43 surface_temp_17_3_2026.nc
+-rw-rw-r-- 1 aswin aswin    197525 Sep 27 13:43 surface_uwnd_17_3_2026.nc
+-rw-rw-r-- 1 aswin aswin    197525 Sep 27 13:43 surface_vwnd_17_3_2026.nc
+-rw-rw-r-- 1 aswin aswin   2900298 Sep 27 13:43 tmpFile.nc
+-rw-rw-r-- 1 aswin aswin    167162 Sep 27 13:43 2026-03-17T00:00:00.000000000_spec360K.png
+-rw-rw-r-- 1 aswin aswin    165305 Sep 27 13:44 2026-03-17T06:00:00.000000000_spec360K.png
+-rwxr-xr-x 1 aswin aswin       498 Sep 27 13:49 noaa.cfg
+-rwxrwxr-x 1 aswin aswin       636 Sep 27 14:32 fetch_core.csh
+-rw-rw-r-- 1 aswin aswin  12422758 Sep 27 14:33 pgb.2026092000.grb
+-rw-rw-r-- 1 aswin aswin    659300 Sep 27 14:33 flx.2026092000.grb
+-rw-rw-r-- 1 aswin aswin  12555870 Sep 27 14:35 pgb.2026092006.grb
+-rw-rw-r-- 1 aswin aswin    646917 Sep 27 14:35 flx.2026092006.grb
+-rw-rw-r-- 1 aswin aswin  12270000 Sep 27 14:36 pgb.2026092012.grb
+-rw-rw-r-- 1 aswin aswin    644998 Sep 27 14:36 flx.2026092012.grb
+-rw-rw-r-- 1 aswin aswin  12336212 Sep 27 14:38 pgb.2026092018.grb
+-rw-rw-r-- 1 aswin aswin    645335 Sep 27 14:38 flx.2026092018.grb
+-rw-rw-r-- 1 aswin aswin      1803 Sep 27 15:36 merge.py_backup
+-rw-rw-r-- 1 aswin aswin      2176 Sep 27 15:37 merge.py
+-rwxrwxr-x 1 aswin aswin     15278 Sep 27 15:37 pgb.2026092000.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1562 Sep 27 15:37 flx.2026092000.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin     15434 Sep 27 15:37 pgb.2026092006.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1566 Sep 27 15:37 flx.2026092006.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin     15434 Sep 27 15:37 pgb.2026092012.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1566 Sep 27 15:37 flx.2026092012.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin     15434 Sep 27 15:37 pgb.2026092018.grb.5b7b6.idx
+-rwxrwxr-x 1 aswin aswin      1566 Sep 27 15:37 flx.2026092018.grb.5b7b6.idx
+-rw-rw-r-- 1 aswin aswin 146868763 Sep 27 15:37 pvFile.nc
+-rw-rw-r-- 1 aswin aswin     11034 Sep 27 15:44 CORe_DailyMeanPV.py~
+-rw-rw-r-- 1 aswin aswin     58021 Sep 27 16:50 coordinate_transformers.py
+drwxr-xr-x 2 aswin aswin      4096 Sep 27 16:50 __pycache__
+-rw-rw-r-- 1 aswin aswin    655904 Sep 27 16:52 2026-09-20 06:00:00_spec360K.png
+-rw-rw-r-- 1 aswin aswin    642971 Sep 27 16:53 2026-09-20 12:00:00_spec360K.png
+-rw-rw-r-- 1 aswin aswin    624186 Sep 27 16:54 2026-09-20 18:00:00_spec360K.png
+-rw-rw-r-- 1 aswin aswin    642312 Sep 27 16:55 2026-09-20 00:00:00_spec360K.png
+-rw-rw-r-- 1 aswin aswin      9134 Sep 27 16:58 CORe_DailyMeanPV.py
+-rw-rw-r-- 1 aswin aswin       677 Sep 27 16:59 config.toml
+drwxrwxr-x 3 aswin aswin      4096 Sep 27 17:04 cpp
+drwxrwxr-x 6 aswin aswin      4096 Sep 27 17:07 builddir
+-rwxrwxr-x 1 aswin aswin      6991 Sep 27 17:57 DaskXDailyMeanPV.py
+-rw-rw-r-- 1 aswin aswin         0 Sep 29 13:50 logs

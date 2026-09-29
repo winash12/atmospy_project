@@ -1,0 +1,86 @@
+#ifndef SUBTERRANEAN_STRATEGIES_HPP
+#define SUBTERRANEAN_STRATEGIES_HPP
+
+#include <cmath>
+#include <limits>
+#include <xtensor/containers/xarray.hpp>
+
+namespace pv_core {
+
+    // --- STRATEGY 1: CLEAN SEPARATED KEITH BRILL FORMULATION ---
+    class KeithBrillStrategy {
+    public:
+        inline void apply(size_t k, size_t j, size_t i, double target_th, double p_sfc, double pot_sfc,
+                          const xt::xarray<double>& pres, xt::xarray<double>& pthta, 
+                          xt::xarray<bool>& done, double p0_val, double kappa, double /*missing_val*/) const 
+        {
+            double p_sub = std::numeric_limits<double>::quiet_NaN();
+            for (size_t lev = 0; lev < pres.shape(0); ++lev) {
+                if (pres(lev) > p_sfc) {
+                    p_sub = pres(lev);
+                    break;
+                }
+            }
+            if (std::isnan(p_sub)) p_sub = p_sfc + 50.0;
+
+            double tsfc     = pot_sfc * std::pow((p_sfc / p0_val), kappa);
+            double thta_sub = tsfc * std::pow((p0_val / p_sub), kappa);
+            double dthta_sub = thta_sub - pot_sfc;
+            if (std::abs(dthta_sub) < 1e-12) dthta_sub = -1e-12;
+
+            double frac = (target_th - pot_sfc) / dthta_sub;
+            pthta(k, j, i) = std::exp(std::log(p_sfc) + frac * (std::log(p_sub) - std::log(p_sfc)));
+            done(k, j, i)  = true;
+        }
+    };
+
+    // --- STRATEGY 2: CLEAN SEPARATED ECMWF/ORSZAG FORMULATION ---
+    class ECMWFOrszagStrategy {
+    public:
+        inline void apply(size_t k, size_t j, size_t i, double target_th, double p_sfc, double pot_sfc,
+                          const xt::xarray<double>& /*pres*/, xt::xarray<double>& pthta, 
+                          xt::xarray<bool>& done, double p0_val, double kappa, double /*missing_val*/) const 
+        {
+            double gamma          = 0.0065; 
+            double R_val          = 287.058;
+            double g_val          = 9.80665;
+            double R_gamma_over_g = (R_val * gamma) / g_val;
+            double denom          = R_gamma_over_g - kappa;
+            
+            if (std::abs(denom) < 1e-12) denom = 1e-12;
+            double ln_p0          = std::log(p0_val);
+
+            double tsfc       = pot_sfc * std::pow((p_sfc / p0_val), kappa);
+            double ln_P_theta = (std::log(target_th) - std::log(tsfc) - (kappa * ln_p0) + (R_gamma_over_g * std::log(p_sfc))) / denom;
+            
+            pthta(k, j, i) = std::exp(ln_P_theta);
+            done(k, j, i)  = true;
+        }
+    };
+
+    // --- STRATEGY 3: CLEAN SEPARATED STRICT LORENZ CLAMP ---
+    class StrictLorenzStrategy {
+    public:
+        inline void apply(size_t k, size_t j, size_t i, double /*target_th*/, double p_sfc, double /*pot_sfc*/,
+                          const xt::xarray<double>& /*pres*/, xt::xarray<double>& pthta, 
+                          xt::xarray<bool>& done, double /*p0_val*/, double /*kappa*/, double /*missing_val*/) const 
+        {
+            pthta(k, j, i) = p_sfc;
+            done(k, j, i)  = true;
+        }
+    };
+
+    // --- STRATEGY 4: NEW PRODUCTION MISSING VALUE MASKING PASS ---
+    class MissingValueStrategy {
+    public:
+        inline void apply(size_t k, size_t j, size_t i, double /*target_th*/, double /*p_sfc*/, double /*pot_sfc*/,
+                          const xt::xarray<double>& /*pres*/, xt::xarray<double>& pthta, 
+                          xt::xarray<bool>& done, double /*p0_val*/, double /*kappa*/, double missing_val) const 
+        {
+            pthta(k, j, i) = missing_val;
+            done(k, j, i)  = true;
+        }
+    };
+}
+
+#endif

@@ -1,0 +1,4 @@
+setenv CARTOPY_DATA_DIR "${HOME}/.local/share/cartopy"
+
+# Fix the Matplotlib Savefig error for headless servers/venvs
+setenv MPLBACKEND Agg

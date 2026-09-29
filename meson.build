@@ -24,8 +24,9 @@ numpy_inc_path = run_command(py, [
 inc_vayu = include_directories('cpp/include')
 
 sources = [
-    'cpp/vayu_kernels.cpp', 
-    'cpp/vayu_bindings.cpp'
+    'cpp/isobaric_to_isentropic_pressure.cpp', 
+    'cpp/isobaric_to_isentropic_velocity.cpp', 
+    'cpp/vayu_core_bindings.cpp'
 ]
 
 # --- 4. Define Dependencies ---

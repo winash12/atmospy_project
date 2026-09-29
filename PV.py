@@ -25,7 +25,7 @@ faulthandler.enable()
 faulthandler.register(signal.SIGQUIT)
 class potential_vorticity:
 
-    def __init__(self, config_path="config.yaml"):
+    def __init__(self, config_path="config.toml"):
         """
         Silicon Valley style Enterprise constructor.
         Loads your configuration context once upon object instantiation,
@@ -35,222 +35,270 @@ class potential_vorticity:
         self.config_env = ConfigContext(config_path)
         
         # Store a clean, direct dictionary reference for your @inject_physics decorator mapping
-        self.C = {
-            'kappa': self.config_env.KAPPA,
-            'p0': self.config_env.P0,
-            'missing': self.config_env.MISSING_DATA,
-            'moore_epsilon': self.config_env.MOORE_EPSILON
-        }
-    
-    def ddx(self,s,lat,lon,missingData):
-
-        lonLen = len(lon)
-        latLen = len(lat)
-        dsdx = np.empty((latLen,lonLen))
-        rearth = 6371221.3
-
-        di = abs(np.cos(np.radians(0.0))*rearth*(np.radians(lon[1]-lon[0])))
-
-        # GRIB order - S-N(OUTER)
-        #              W-E(INNER)
-        has_left = s[:,:-2] > -999.99
-        has_right = s[:,2:] > -999.99
-        has_value = s[:,1:-1] > -999.99
-        dsdx = np.zeros((73,144))
-        dsdx[:, 1:-1] = -999.99
-        dsdx[:, 1:-1] = np.where(has_right & has_value, (s[:,2:] - s[:,1:-1]) / di, dsdx[:, 1:-1])
-        dsdx[:, 1:-1] = np.where(has_left & has_value, (s[:,1:-1] - s[:,:-2]) / di, dsdx[:, 1:-1])
-        dsdx[:, 1:-1] = np.where(has_left & has_right, (s[:,2:] - s[:,:-2]) / (2. * di), dsdx[:, 1:-1])
-        hasValue = s[1:-1,0] > -999.99
-        hasRight = s[1:-1,-1] > -999.99
-        hasLeft = s[1:-1,1] > -999.99
-        hasRight2 = s[1:-1,-2] > -999.99
         
+
+    def ddx(self, s, lat, lon, missingData=-999.99):
+       lonLen = len(lon)
+       latLen = len(lat)
+       rearth = 6371221.3
+       
+       # 1. FIX: Make di a 2D array scaling dynamically with latitude rows
+       # Shape: (latLen, 1) to support clean broadcasting down columns
+       lat_rad = np.radians(lat)[:, np.newaxis]
+       
+       # Calculate dlon in radians (handles variable or uniform grid spacing safely)
+       # To match the Fortran logic exactly: ABS(LON(1) - LON(2)) / 360 * 2 * PI * R
+       dlon_rad = np.abs(np.radians(lon[0] - lon[1]))
+       
+       # Compute row-by-row horizontal step increments
+       di = rearth * np.cos(lat_rad) * dlon_rad  # Shape: (latLen, 1)
+       
+       # 2. FIX: Dynamically allocate using input shapes, NOT hardcoded (73, 144) constants
+       dsdx = np.full((latLen, lonLen), missingData)
+       
+       # --- Interior Stencil Extraction (Columns 1:-1) ---
+       has_left = s[:, :-2] > missingData
+       has_right = s[:, 2:] > missingData
+       has_value = s[:, 1:-1] > missingData
+
+       # Cascading fallback logic matching DesJardins' 2-of-3 rules
+       # Note the explicit check to avoid division-by-zero errors at the exact poles
+       valid_lat_mask = np.abs(lat) < 90.0
+       v_rows = valid_lat_mask[:, np.newaxis] # 2D broadcast helper
+       
+       # Apply 1st-order forward/backward and 2nd-order centered differences
+       dsdx[:, 1:-1] = np.where(v_rows & has_right & has_value, (s[:, 2:] - s[:, 1:-1]) / di, dsdx[:, 1:-1])
+       dsdx[:, 1:-1] = np.where(v_rows & has_left & has_value, (s[:, 1:-1] - s[:, :-2]) / di, dsdx[:, 1:-1])
+       
+       # FIX: Enforced strict parenthesis around the centered denominator (2. * di)
+       dsdx[:, 1:-1] = np.where(v_rows & has_left & has_right, (s[:, 2:] - s[:, :-2]) / (2. * di), dsdx[:, 1:-1])
+       
+       # --- Boundary Point Extraction (Rows 1:-1 for Column Limits) ---
+       has_col0 = s[1:-1, 0] > missingData
+       has_col_last = s[1:-1, -1] > missingData
+       has_col1 = s[1:-1, 1] > missingData      
+       has_col_prev = s[1:-1, -2] > missingData  
+       
+       # 3. Dynamic Boundary Condition Routing
+       # Setup A: Cyclic Wrapped Grid (Global Continuous)
+       if np.allclose(2*lon[0]-lon[-1], lon[1], 1e-3) or np.allclose(2*lon[0]-lon[-1], lon[1] + 360.0, 1e-3):
+           v_sub = valid_lat_mask[1:-1, np.newaxis]
         
+           dsdx[1:-1, 0] = np.where(v_sub & has_col_last & has_col0, (s[1:-1, -1] - s[1:-1, 0]) / di[1:-1], dsdx[1:-1, 0])
+           dsdx[1:-1, 0] = np.where(v_sub & has_col1 & has_col0, (s[1:-1, 1] - s[1:-1, 0]) / di[1:-1], dsdx[1:-1, 0])
+           dsdx[1:-1, 0] = np.where(v_sub & has_col1 & has_col_last, (s[1:-1, 1] - s[1:-1, -1]) / (2. * di[1:-1]), dsdx[1:-1, 0])
         
-        if (np.allclose(2*lon[0]-lon[-1],lon[1],1e-3) or np.allclose(2*lon[0]-lon[-1],lon[1] + 360.0,1e-3)):
-            dsdx[1:-1,0] = -999.99
-            dsdx[1:-1,-1] = -999.99
-            dsdx[1:-1,0] = np.where(hasRight & hasValue,(s[1:-1,-1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
-            dsdx[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
-            dsdx[1:-1,0] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) /2. * di, dsdx[1:-1, 0])
-            dsdx[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx[1:-1, -1])
-            dsdx[1:-1,-1] = np.where(hasLeft & hasRight,(s[1:-1,1] - s[1:-1,-1]) / di, dsdx[1:-1, -1])
-            dsdx[1:-1,-1] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /2. * di, dsdx[1:-1, -1])
-        elif (np.allclose(lon[0],lon[-1],1e-3)):
-            dsdx[1:-1,0] = -999.99
-            dsdx[1:-1,-1] = -999.99
-            dsdx[1:-1,0] = np.where(hasLeft & hasRight2,(s[1:-1,1] - s[1:-1,-2]) / 2. *di, dsdx[1:-1, 0])
-            dsdx[1:-1,0] = np.where(hasValue & hasRight2,(s[1:-1,0] - s[1:-1,-2]) /di, dsdx[1:-1, 0])
-            dsdx[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
-        else:
-            dsdx[1:-1,0] = -999.99
-            dsdx[1:-1,-1] = -999.99
-            dsdx[1:-1,0] = np.where(hasLeft & hasValue,(s[1:-1,1] - s[1:-1,0]) / di, dsdx[1:-1, 0])
-            dsdx[1:-1,-1] = np.where(hasRight & hasRight2,(s[1:-1,-1] - s[1:-1,-2]) / di, dsdx[1:-1, -1])
-        return dsdx
+           dsdx[1:-1, -1] = np.where(v_sub & has_col_last & has_col_prev, (s[1:-1, -1] - s[1:-1, -2]) / di[1:-1], dsdx[1:-1, -1])
+           dsdx[1:-1, -1] = np.where(v_sub & has_col1 & has_col_last, (s[1:-1, 1] - s[1:-1, -1]) / di[1:-1], dsdx[1:-1, -1])
+           dsdx[1:-1, -1] = np.where(v_sub & has_col0 & has_col_prev, (s[1:-1, 0] - s[1:-1, -2]) / (2. * di[1:-1]), dsdx[1:-1, -1])
+        
+           # Setup B: Overlapping Global Grid Points
+       elif np.allclose(lon[0], lon[-1], 1e-3):
+           v_sub = valid_lat_mask[1:-1, np.newaxis]
+           
+           dsdx[1:-1, 0] = np.where(v_sub & has_col1 & has_col_prev, (s[1:-1, 1] - s[1:-1, -2]) / (2. * di[1:-1]), dsdx[1:-1, 0])
+           dsdx[1:-1, 0] = np.where(v_sub & has_col0 & has_col_prev, (s[1:-1, 0] - s[1:-1, -2]) / di[1:-1], dsdx[1:-1, 0])
+           dsdx[1:-1, 0] = np.where(v_sub & has_col1 & has_col0, (s[1:-1, 1] - s[1:-1, 0]) / di[1:-1], dsdx[1:-1, 0])
+           dsdx[1:-1, -1] = dsdx[1:-1, 0] # Match exact grid overlaps
+        
+           # Setup C: Pure Regional Bounded Grid (Like India Domain)
+       else:
+           v_sub = valid_lat_mask[1:-1]
+           # Left Boundary: 1st-order forward difference
+           dsdx[1:-1, 0] = np.where(v_sub & has_col1 & has_col0, (s[1:-1, 1] - s[1:-1, 0]) / di[1:-1, 0], dsdx[1:-1, 0])
+           # Right Boundary: 1st-order backward difference
+           dsdx[1:-1, -1] = np.where(v_sub & has_col_last & has_col_prev, (s[1:-1, -1] - s[1:-1, -2]) / di[1:-1, 0], dsdx[1:-1, -1])
+           
+           # --- 4. Polar Force-Clamp (Matches Fortran Narrative Explicitly) ---
+           is_pole = np.abs(lat) >= 90.0
+           dsdx[is_pole, :] = 0.0
+
+       return dsdx
 
 
                     
-    def ddy_old(self,s,lat,lon):
-        lonLen = len(lon)
-        latLen = len(lat)
-        dsdy = np.empty((latLen,lonLen))
-
-        rearth = 6371221.3
-        dj = abs(np.radians((lat[0]-lat[1])) * rearth)
-        # North Pole
-        
-        hasNValue = s[0,:] > -999.99
-        hasNLeft = s[1,:] > -999.99
-
-        dsdy[0,:] = -999.99
-        dsdy[0,:] = np.where(hasNValue & hasNLeft, (s[0,:]-s[1,:])/dj,dsdy[0,:])
-        #South Pole
-        hasSRValue = s[-1,:] > -999.99
-        hasSR2Value = s[-2,:] > -999.99
-
-        dsdy[-1,:] = -999.99
-        dsdy[-1,:] = np.where(hasSRValue & hasSR2Value,(s[-2,:]-s[-1,:])/dj,dsdy[-1,:])
-
-
-        #Regular coordinates
-        has_value = s[1:-1, :] > -999.99
-        has_right = s[2:,:] > -999.99
-        has_left = s[:-2,:] > -999.99
-        dsdy[1:-1,:] = -999.99
-        dsdy[1:-1,:] = np.where(has_left & has_value,(s[2,:] - s[1:-1,:]) / dj, dsdy[1:-1,:])
-        dsdy[1:-1,:] = np.where(has_right & has_value,(s[1:-1,:] - s[:-2,:]) / dj, dsdy[1:-1,:])
-        dsdy[1:-1,:] = np.where(has_left & has_right,(s[2:,:] - s[:-2,:])/(2.*dj),dsdy[1:-1,:])
-
-        return dsdy
 
     def ddy(self, s, lat, lon):
         """
         Pramana Vaayu: Universal Meridional Derivative Engine.
-        Handles North-Start (Tiger/CORe) or South-Start (Dragon/ERA5) automatically.
-        Maintains 1e-15 MAE integrity.
+        Captures the exact adaptive missing-data fallback essence of your F77 code.
         """
-        # 1. Standardise missing values (The 'Ritual of Purification')
+        # 1. Standardise missing values
         s = np.where(s == -999.99, np.nan, s)
+        s = np.where(s == -9999.0, np.nan, s)
         lat_len, lon_len = s.shape
         dsdy = np.full((lat_len, lon_len), np.nan)
-        rearth = 6371221.3
+        rearth = 6371221.3  
 
-        # 2. Determine Orientation (Pramana: Detecting the lineage)
-        # direction = 1 if South-to-North (-90 to 90)
-        # direction = -1 if North-to-South (90 to -90)
+        # 2. Determine Orientation
         direction = 1 if lat[-1] > lat[0] else -1
         
-        # 3. Calculate Variable Spacing (The 'Generic' measure)
+        # 3. Calculate Variable Spacing
         lat_rads = np.radians(lat)
         dphi = np.abs(np.diff(lat_rads))
         
-        # dist_2d[i] is the central distance between index i+1 and i-1
+        # dist_2d computes the exact physical distance between index j+1 and j-1
         dist_2d = (dphi[1:] + dphi[:-1]) * rearth
-        dist_2d = dist_2d[:, np.newaxis] # Broadcast for the 512 longitudes
+        dist_2d = dist_2d[:, np.newaxis]  
         
-        # 4. Define 'Top' and 'Bottom' based on physical North/South
+        # Establish individual component spacing vectors for one-sided fallbacks
+        dphi_prev = dphi[:-1, np.newaxis] * rearth
+        dphi_next = dphi[1:, np.newaxis] * rearth
+        
+        # 4. Map s_north and s_south explicitly to maintain a positive y-direction (South -> North)
         if direction == 1:
-            # Index increases Northward: s[i+1] is North, s[i-1] is South
-            s_top = s[2:, :]
-            s_bot = s[:-2, :]
+            s_center = s[1:-1, :]
+            s_north  = s[2:, :]
+            s_south  = s[:-2, :]
+            
+            # Map neighbor valid masks to match
+            valid_center = ~np.isnan(s_center)
+            valid_north  = ~np.isnan(s_north)
+            valid_south  = ~np.isnan(s_south)
         else:
-            # Index increases Southward: s[i-1] is North, s[i+1] is South
-            s_top = s[:-2, :]
-            s_bot = s[2:, :]
+            s_center = s[1:-1, :]
+            s_north  = s[:-2, :]
+            s_south  = s[2:, :]
             
-        # 5. The 'Shighra' (Fast) Central Difference
-        valid = ~np.isnan(s)
-        has_both = valid[2:, :] & valid[:-2, :] & valid[1:-1, :]
-
+            # Map neighbor valid masks to match orientation
+            valid_center = ~np.isnan(s_center)
+            valid_north  = ~np.isnan(s_north)
+            valid_south  = ~np.isnan(s_south)
+            
+        # 5. Adaptive Finite Difference Engine (Vectorized F77 Essence)
         with np.errstate(divide='ignore', invalid='ignore'):
-            # Writes directly into memory, zero allocation bloat
-            np.divide(s_top - s_bot, dist_2d, out=dsdy[1:-1, :], where=has_both)
+            # --- Branch 1: Standard Central Difference (Both neighbors valid) ---
+            mask_central = valid_center & valid_north & valid_south
+            dsdy_central = (s_north - s_south) / dist_2d
+            dsdy[1:-1, :] = np.where(mask_central, dsdy_central, dsdy[1:-1, :])
             
-            # 6. Boundaries (Fierce and accurate)
+            # --- Branch 2: Adaptive Forward Fallback (South missing, North valid) ---
+            mask_forward = valid_center & valid_north & (~valid_south)
+            dsdy_forward = (s_north - s_center) / dphi_next
+            dsdy[1:-1, :] = np.where(mask_forward, dsdy_forward, dsdy[1:-1, :])
+            
+            # --- Branch 3: Adaptive Backward Fallback (North missing, South valid) ---
+            mask_backward = valid_center & (~valid_north) & valid_south
+            dsdy_backward = (s_center - s_south) / dphi_prev
+            dsdy[1:-1, :] = np.where(mask_backward, dsdy_backward, dsdy[1:-1, :])
+            
+            # 6. Boundaries (Properly oriented to compute North - South)
+            valid = ~np.isnan(s)
             if direction == 1:
-                # South Boundary (Index 0)
+                # South Boundary (Index 0) -> Next level is further North
                 mask_s = valid[0, :] & valid[1, :]
                 dsdy[0, mask_s] = (s[1, mask_s] - s[0, mask_s]) / (dphi[0] * rearth)
-                # North Boundary (Index -1)
+                
+                # North Boundary (Index -1) -> Previous level is further South
                 mask_n = valid[-1, :] & valid[-2, :]
                 dsdy[-1, mask_n] = (s[-1, mask_n] - s[-2, mask_n]) / (dphi[-1] * rearth)
             else:
-                # North Boundary (Index 0)
+                # North Boundary (Index 0) -> Next level (index 1) is further South
                 mask_n = valid[0, :] & valid[1, :]
                 dsdy[0, mask_n] = (s[0, mask_n] - s[1, mask_n]) / (dphi[0] * rearth)
-            # South Boundary (Index -1)
-            mask_s = valid[-1, :] & valid[-2, :]
-            dsdy[-1, mask_s] = (s[-2, mask_s] - s[-1, mask_s]) / (dphi[-1] * rearth)
+                
+                # South Boundary (Index -1) -> Previous level (index -2) is further North
+                mask_s = valid[-1, :] & valid[-2, :]
+                dsdy[-1, mask_s] = (s[-2, mask_s] - s[-1, mask_s]) / (dphi[-1] * rearth)
         
         return dsdy
 
     
 
-    def relvor_vectorized(self, u, v, dvdx, dudy, lat, lon):
-
+    def relvor(self, u, v, lat, lon, missingData=-999.99):
         """
-        Vectorized Relative Vorticity with Spherical Cap polar treatment.
-        USP: Uses Stokes' Theorem for pole points to avoid 1/cos(90) singularities.
+        Pramana Vaayu - Kinematics Suite: Vectorized Relative Vorticity Engine.
+        Coordinates horizontal derivatives via custom ddx/ddy layers, maps Stokes'
+        Theorem polar caps, and safely processes regional/finite grid domains.
         """
-        # 0. Setup constants from the injected physics config
-        rearth = 6371229.0  # Earth radius in meters
+        rearth = 6371221.3  # Synchronized with your ddx/ddy constant
         nj, ni = u.shape
         relv = np.full((nj, ni), np.nan)
-    
-        # Convert lat/lon to radians for trig functions
-        lat_rad = np.radians(lat)
-    
-        # --- 1. Polar Treatment (The Keith Brill / GEMPAK Method) ---
-        # South Pole (Index 0): Uses the first row above the pole (Index 1)
-        # Circulation = Sum(u * dl) / Area of Spherical Cap
-        u_south_ring = u[1, :]
-        valid_s = ~np.isnan(u_south_ring)
-        if np.any(valid_s):
-        # Average U around the ring * Geometric Factor
-        # Factor: cos(lat) / (R * (1 - sin(lat)))
-            factor_s = np.cos(lat_rad[1]) / (rearth * (1.0 - np.sin(lat_rad[1])))
-            relv[0, :] = np.nanmean(u_south_ring) * factor_s
-
-            # North Pole (Index -1): Uses the row below the pole (Index -2)
-            u_north_ring = u[-2, :]
-            valid_n = ~np.isnan(u_north_ring)
-        if np.any(valid_n):
-            factor_n = np.cos(lat_rad[-2]) / (rearth * (1.0 - np.sin(lat_rad[-2])))
-            # Note: Sign flip often required for North vs South depending on coordinate orientation
-            relv[-1, :] = np.nanmean(u_north_ring) * factor_n
-
-            # --- 2. Interior Grid (Standard Spherical Vorticity) ---
-            # Formula: dv/dx - du/dy + (u * tan(phi) / R)
-            # We use [1:-1] to exclude the pole rows we just calculated
-            
-            # tan(phi) needs to be broadcasted to (nj-2, ni)
-            tan_lat = np.tan(lat_rad[1:-1, np.newaxis])
         
-            # Core Vectorized Calculation
-            # This processes all interior points (e.g., 71 x 144) in one SIMD step
-        relv[1:-1, :] = dvdx[1:-1, :] - dudy[1:-1, :] + (u[1:-1, :] * tan_lat / rearth)
-        return relv 
+        lat_rad = np.radians(lat)
+        
+        # 1. Compute Gradients via your custom, regional-safe engines
+        # ddx manages fallback stencils; ddy purifies data straight to np.nan
+        dvdx = self.ddx(v, lat, lon, missingData=missingData)
+        dudy = self.ddy(u, lat, lon)
+        
+        # 2. Harmonize Data Masking Types
+        # Since ddy outputs np.nan, force ddx outputs to match for math consistency
+        dvdx = np.where(dvdx == missingData, np.nan, dvdx)
+        u_clean = np.where(u == missingData, np.nan, u)
+        
+        # Establish polar detection threshold (e.g., within 0.5 degrees of geographic poles)
+        POLE_TOLERANCE = 89.5
+
+        # --- 3. Conditional Polar Cap Boundaries (Stokes' Theorem) ---
+        
+        # Check A: South Pole Presence (Index 0)
+        if lat[0] <= -POLE_TOLERANCE:
+            u_south_ring = u_clean[1, :]
+            valid_s = ~np.isnan(u_south_ring)
+            if np.any(valid_s):
+                # GEMPAK/Brill factor: cos(lat) / (R * (1 - sin(lat)))
+                factor_s = np.cos(lat_rad[1]) / (rearth * (1.0 - np.sin(lat_rad[1])))
+                relv[0, :] = np.nanmean(u_south_ring) * factor_s
+                start_idx = 1
+        else:
+           # Pure regional grid fallback: compute standard calculus at boundary row 0
+           start_idx = 0
+
+        # Check B: North Pole Presence (Index -1)
+        if lat[-1] >= POLE_TOLERANCE:
+            u_north_ring = u_clean[-2, :]
+            valid_n = ~np.isnan(u_north_ring)
+            if np.any(valid_n):
+            # Geometric area correction (+) and counter-clockwise sign flip (-)
+                factor_n = -np.cos(lat_rad[-2]) / (rearth * (1.0 + np.sin(lat_rad[-2])))
+            relv[-1, :] = np.nanmean(u_north_ring) * factor_n
+            end_idx = -1
+        else:
+            # Pure regional grid fallback: compute standard calculus up to top row
+            end_idx = nj
+
+        # --- 4. Dynamically Sliced Spatial Interior Calculation ---
+        # Formula: dv/dx - du/dy + (u * tan(phi) / R)
+        # Automatically scales bounds depending on your domain configuration
+        lat_slice = lat_rad[start_idx:end_idx]
+        tan_lat = np.tan(lat_slice[:, np.newaxis]) # 2D column broadcast helper
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            relv[start_idx:end_idx, :] = (
+                dvdx[start_idx:end_idx, :]
+                - dudy[start_idx:end_idx, :]
+                + (u_clean[start_idx:end_idx, :] * tan_lat / rearth)
+            )
+
+        # 5. Ritual of Re-Purification
+        # If your downstream stack requires -999.99 for missing values, restore it here
+        return np.where(np.isnan(relv), missingData, relv)
+
+
 
     def absvor_vectorized(self, lat, relv):
-                                                     
-        omega = self.phys.OMEGA.m if hasattr(self.phys, 'OMEGA') else 7.2921159e-5
+        """
+        Pramana Vaayu: Universal Absolute Vorticity Engine.
+        Combines custom relative vorticity fields with the local Coriolis parameter.
+        Supports infinite tracking dimensions (2D/3D/4D) via flexible trailing broadcasting.
+        """
+        # 1. Pure configuration inheritance from the class decorator footprint
+        # self.OMEGA is guaranteed to exist by the TOML engine before this triggers
+        corl = 2.0 * self.OMEGA * np.sin(np.radians(lat))
     
-    # 2. Calculate Coriolis Parameter (f)
-    # lat is 1D (73,); corl becomes (73,)
-        corl = 2.0 * omega * np.sin(np.radians(lat))
+        # 2. Universal Multi-Dimensional Broadcasting Moat
+        # Dynamically scales the 1D Coriolis vector to align with the shape of relv
+        if relv.ndim > 2:
+            reshape_pad = [1] * relv.ndim
+            reshape_pad[-2] = len(lat)
+            f_broadcast = corl.reshape(reshape_pad)
+        else:
+            f_broadcast = corl[:, np.newaxis]
     
-    # 3. Vectorized Broadcasting
-    # Expand corl (73,) to (73, 1) to broadcast against relv (73, 144)
-        f_3d = corl[:, np.newaxis]
-    
-    # 4. Summation with NaN Propagation
-    # In 2026, we no longer need 'np.where' for missing data. 
-    # If relv is NaN, absv will automatically be NaN.
-        absv = relv + f_3d
-    
-        return absv
+        # 3. Summation with Modern NaN Propagation
+        # Executed directly via native hardware instructions
+        return relv + f_broadcast
         
     def pvonp_vectorized(self, ni, nj, lat, lon, pres, pres1, pres2, tmp, tmp1, tmp2, u, u1, u2, v, v1, v2):
 
@@ -573,66 +621,66 @@ class potential_vorticity:
 
 
 
-        tdwn[1:-1,:,:] =  thta[0:-3,None,None]*(pthta[0:-2,:,:]/p0)**kappa
+        tdwn[1:-1, :, :] = thta[0:-2, None, None] * (pthta[0:-2, :, :] / p0)**kappa
 
-        tup[1:-1,:,:] = thta[2:-1,None,None]*(pthta[2:,:,:]/p0)**kappa
+        # pthta[2:] maps to upper layers (k+1, size 48)
+        # thta[2:] matches the size perfectly
+        tup[1:-1, :, :]  = thta[2:, None, None] * (pthta[2:, :, :] / p0)**kappa
 
-
-
-        dlt[1:-1,:,:] = np.log(tup[1:-1,:,:]/tdwn[1:-1,:,:])
-
-
-        dlp[1:-1,:,:] = np.log(pthta[2:,:,:]/pthta[0:-2,:,:])
-
-        dltdlp[1:-1,:,:] = dlt[1:-1,:,:]/dlp[1:-1,:,:]
-
-        stabl[1:-1,:,:] = (thta[1:-2,None,None]/pthta[1:-1,:,:]) *(dltdlp[1:-1,:,:]-kappa)
-
-        ipv[1:-1,:,:] = -gravity*absVor[1:-1,:,:]*stabl[1:-1,:,:]
-
-
-
-
-        # Boundary Layer
-
-        hasNoPthta = pthta[0,:,:] <= 0.
-        hasNoPthta0 = pthta[1,:,:] <= 0.
-        hasNoAbsVor = absVor[0,:,:] < -999.99
-
-        ipv[0,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[0,:,:])
+        dlt[1:-1, :, :] = np.log(tup[1:-1, :, :] / tdwn[1:-1, :, :])
+        dlp[1:-1, :, :] = np.log(pthta[2:, :, :] / pthta[0:-2, :, :])
         
+        dltdlp[1:-1, :, :] = dlt[1:-1, :, :] / dlp[1:-1, :, :]
 
-        tdwn[0,:,:] = thta[0,None,None] * (pthta[0,:,:]/p0)**kappa
-        tup[0,:,:] =  thta[1,None,None] * (pthta[1,:,:]/p0)**kappa
-        dlt[0,:,:] = np.log(tup[0,:,:]) - np.log(tdwn[0,:,:])
-        dlp[0,:,:] = np.log(pthta[1,:,:])-np.log(pthta[0,:,:])
-        dltdlp[0,:,:] = dlt[0,:,:]/dlp[0,:,:]
-        stabl[0,:,:] = (thta[0,None,None]/pthta[0,:,:]) *(dltdlp[0,:,:]-kappa)
+        # FIXED: Changed thta[1:-2] to thta[1:-1] to maintain bit-perfect axis 48 size matching!
+        stabl[1:-1, :, :] = (thta[1:-1, None, None] / pthta[1:-1, :, :]) * (dltdlp[1:-1, :, :] - kappa)
+        ipv[1:-1, :, :]   = -gravity * absVor[1:-1, :, :] * stabl[1:-1, :, :]
 
-        ipv[0,:,:] = -gravity * absVor[0,:,:] * stabl[0,:,:]
+        # =====================================================================
+        # 📂 BOUNDARY LAYER BASE CASE (Level index 0)
+        # =====================================================================
+        hasNoPthta  = pthta[0, :, :] <= 0.
+        hasNoPthta0 = pthta[1, :, :] <= 0.
+        hasNoAbsVor = absVor[0, :, :] < -999.99
 
-
-
-
-        # Topmost Layer
-        hasNoPthta = pthta[-1,:,:] <= 0.
-        hasNoPthta0 = pthta[-2,:,:] <= 0.
-        hasNoAbsVor = absVor[-1,:,:] < -999.99
-
-        ipv[-1,:,:] = np.where(hasNoPthta|hasNoPthta0|hasNoAbsVor,-999.99,ipv[-1,:,:])
-
+        ipv[0, :, :] = np.where(hasNoPthta | hasNoPthta0 | hasNoAbsVor, -999.99, ipv[0, :, :])
         
-        tdwn[-1,:,:] = thta[-3,None,None]*(pthta[-2,:,:]/p0)**kappa
-        tup[-1,:,:] =  thta[-2,None,None]*(pthta[-1,:,:]/p0)**kappa
+        tdwn[0, :, :] = thta[0, None, None] * (pthta[0, :, :] / p0)**kappa
+        tup[0, :, :]  = thta[1, None, None] * (pthta[1, :, :] / p0)**kappa
+        
+        dlt[0, :, :] = np.log(tup[0, :, :]) - np.log(tdwn[0, :, :])
+        dlp[0, :, :] = np.log(pthta[1, :, :]) - np.log(pthta[0, :, :])
+        
+        dltdlp[0, :, :] = dlt[0, :, :] / dlp[0, :, :]
+        stabl[0, :, :]  = (thta[0, None, None] / pthta[0, :, :]) * (dltdlp[0, :, :] - kappa)
+        ipv[0, :, :]    = -gravity * absVor[0, :, :] * stabl[0, :, :]
 
-        dlt[-1,:,:] = np.log(tup[-1,:,:]/tdwn[-1,:,:])
-        dlp[-1,:,:] = np.log(pthta[-1,:,:]/pthta[-2,:,:])
-        dltdlp[-1,:,:] = dlt[-1,:,:]/dlp[-1,:,:]
-        stabl[-1,:,:] = (thta[-2,None,None]/pthta[-1,:,:]) *(dltdlp[-1,:,:]-kappa)
-        ipv[-1,:,:] = -gravity * absVor[-1,:,:] * stabl[-1,:,:]
+        # =====================================================================
+        # 📂 TOPMOST LAYER CASE (Level index -1)
+        # =====================================================================
+        hasNoPthta  = pthta[-1, :, :] <= 0.
+        hasNoPthta0 = pthta[-2, :, :] <= 0.
+        hasNoAbsVor = absVor[-1, :, :] < -999.99
 
-        smoothedIPV = ndimage.gaussian_filter(ipv*1e6,sigma=(0,2,2),order=0)
+        ipv[-1, :, :] = np.where(hasNoPthta | hasNoPthta0 | hasNoAbsVor, -999.99, ipv[-1, :, :])
+
+        # FIXED: Adjusted indices to use clean backward finite differences between level -2 and top level -1
+        tdwn[-1, :, :] = thta[-2, None, None] * (pthta[-2, :, :] / p0)**kappa
+        tup[-1, :, :]  = thta[-1, None, None] * (pthta[-1, :, :] / p0)**kappa
+
+        dlt[-1, :, :] = np.log(tup[-1, :, :] / tdwn[-1, :, :])
+        dlp[-1, :, :] = np.log(pthta[-1, :, :] / pthta[-2, :, :])
+        
+        dltdlp[-1, :, :] = dlt[-1, :, :] / dlp[-1, :, :]
+        stabl[-1, :, :]  = (thta[-1, None, None] / pthta[-1, :, :]) * (dltdlp[-1, :, :] - kappa)
+        ipv[-1, :, :]    = -gravity * absVor[-1, :, :] * stabl[-1, :, :]
+
+        # =====================================================================
+        # 📂 SPATIAL GAUSSIAN SMOOTHING FILTER FILTERS
+        # =====================================================================
+        smoothedIPV = ndimage.gaussian_filter(ipv * 1e6, sigma=(0, 2, 2), order=0)
         return smoothedIPV
+
 
     def ipv_vectorized(self, lats, lons, kthta, thta, pthta, uthta, vthta, missingData):
         # 1. Physical Constants
@@ -983,7 +1031,7 @@ class potential_vorticity:
 
         return pthta, pressure_down, pressure_up, potential_temp_down, potential_temp_up, alogp_down, alogp_up, done
 
-
+ 
 
     def _solve_isentropic_pressure_nr_engine(self, pthta_init, done_mask, pressure_down, pressure_up, potential_temp_down, potential_temp_up, alogp_down, alogp_up, g_alogp, thta_grid_clean, kappa, epsln, nmax, p0_val):
         """
@@ -1086,41 +1134,29 @@ class potential_vorticity:
 
         return pthta, tdwn, tup, dltdlp, interc
 
-    def _enforce_isentropic_pressure_monotonicity(self, pthta_raw, kthta):
-        """
-        Independent physical smoothing pass.
-        """
-        pthta_smooth = pthta_raw.copy()
-        for k in range(1, kthta):
-            prev_p = pthta_smooth[k - 1, :, :]
-            curr_p = pthta_smooth[k, :, :]
-            anomaly_mask = (prev_p > 0.0) & (curr_p > prev_p)
-            # PARITY FIX: Explicit 64-bit precision literal configuration addition
-            pthta_smooth[k, :, :] = np.where(anomaly_mask, prev_p + np.float64(0.001), curr_p)
-
-        return pthta_smooth
+   
 
     def _enforce_isentropic_pressure_monotonicity(self, pthta_raw, kthta):
         """
-        Independent physical smoothing pass.
+        Optimized hybrid-vectorized physical smoothing pass.
+        Processes all 525,600 horizontal fields in parallel level-by-level.
         Ensures pressure strictly decreases (or stabilizes with a 0.001 Pa offset) 
         as potential temperature increases along the vertical level axis (axis=0).
         """
-        # Create a deep copy to keep your raw NR solver arrays pristine for debugging
+        # Create a deep copy to keep your raw NR solver arrays pristine
         pthta_smooth = pthta_raw.copy()
 
-        # Sweep sequentially up through the output isentropic levels (KOUT)
-        # matching Fortran's look-back loop structure step-for-step
+        # Sweep sequentially through the vertical levels to preserve the lookup chain.
+        # The internal np.where forces broad SIMD vectorization across the spatial planes.
         for k in range(1, kthta):
-            prev_p = pthta_smooth[k - 1, :, :]
-            curr_p = pthta_smooth[k, :, :]
+            prev_p = pthta_smooth[k - 1]
+            curr_p = pthta_smooth[k]
 
-            # Condition: Prior level has valid data (> 0) AND current pressure 
-            # incorrectly exceeds prior pressure (violating height rules)
+            # Vectorized condition: Check all 525,600 horizontal coordinates simultaneously
             anomaly_mask = (prev_p > 0.0) & (curr_p > prev_p)
 
             # Apply the 0.001 Pa corrective stabilization offset where anomalies exist
-            pthta_smooth[k, :, :] = np.where(anomaly_mask, prev_p + 0.001, curr_p)
+            pthta_smooth[k] = np.where(anomaly_mask, prev_p + 0.001, curr_p)
 
         return pthta_smooth
   
@@ -1932,38 +1968,6 @@ class potential_vorticity:
         return ndimage.gaussian_filter(ipv * 1e6, sigma=(0, 2, 2))
 
     
-    def universal_lorenz_clip(thta_levels, p_sfc, t_sfc, vars_dict, sfc_vars_dict):
-        """
-        Architect's approach: Variable-agnostic Lorenz clipping.
-        
-        Parameters:
-        thta_levels  : List/Array of target isentropic levels (e.g., [280, 290...])
-        p_sfc        : 2D array of Surface Pressure (from ANY model)
-        t_sfc        : 2D array of Surface Temperature (from ANY model)
-        3d_vars_dict : Dictionary of 3D interpolated arrays {'P': pthta, 'U': uthta, 'V': vthta}
-        sfc_vars_dict: Dictionary of 2D surface arrays {'P': p_sfc, 'U': u_sfc, 'V': v_sfc}
-        """
-        
-        # 1. Calculate the Universal Threshold (Potential Temp at Ground)
-        # R/Cp = 0.2857 is standard across NCEP/NCAR/ECMWF
-        # Ensure p_sfc is in same units as 100000 (Pascals)
-        theta_sfc = t_sfc * (100000.0 / p_sfc)**0.2857
-        
-        # 2. Iterate through levels and 'Skin' the underground points
-        for k, theta_target in enumerate(thta_levels):
-            # The 'Underground' Mask
-            underground = theta_target < theta_sfc
-            
-            # Apply the clip to EVERY variable in your dictionary
-        # This makes it agnostic: add 'T' or 'Q' to the dict, and it just works.
-        for var_name in vars_dict.keys():
-            target_3d = vars_dict[var_name]
-            source_2d = sfc_vars_dict[var_name]
-            
-            # Force the 3D 'underground' point to match the 2D surface value
-            target_3d[k, underground] = source_2d[underground]
-            
-        return vars_dict
     
     def tests2thta(self,lats,lons,plevs,kthta,uwndI,psfc,uins,thta,pthta):
         # 1. Define the root directory of your project

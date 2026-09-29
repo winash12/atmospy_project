@@ -1,0 +1,182 @@
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+getctype: "real(kind=dp)" is mapped to C "float" (to override define dict(real = dict(dp="<C typespec>")) in /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.f2py_f2cmap file).
+The Meson build system
+Version: 1.10.1
+Source dir: /tmp/tmp4ny8_1fk
+Build dir: /tmp/tmp4ny8_1fk/bbdir
+Build type: native build
+Project name: interp_lib
+Project version: 0.1
+Fortran compiler for the host machine: gfortran (gcc 13.3.0 "GNU Fortran (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0")
+Fortran linker for the host machine: gfortran ld.bfd 2.42
+C compiler for the host machine: cc (gcc 13.3.0 "cc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0")
+C linker for the host machine: cc ld.bfd 2.42
+Host machine cpu family: x86_64
+Host machine cpu: x86_64
+Program /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.venv/bin/python3.12 found: YES (/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.venv/bin/python3.12)
+Found pkg-config: YES (/usr/bin/pkg-config) 1.8.1
+Run-time dependency python found: YES 3.12
+Library quadmath found: YES
+Build targets in project: 1
+
+Found ninja-1.13.0.git.kitware.jobserver-pipe-1 at /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.venv/bin/ninja
+ninja: Entering directory `/tmp/tmp4ny8_1fk/bbdir'
+[1/9] Scanning target interp_lib.cpython-312-x86_64-linux-gnu for modules
+[2/9] Compiling C object interp_lib.cpython-312-x86_64-linux-gnu.so.p/interp_libmodule.c.o
+[3/9] Generating dynamic dependency information for target interp_lib.cpython-312-x86_64-linux-gnu
+[4/9] Compiling Fortran object interp_lib.cpython-312-x86_64-linux-gnu.so.p/interp_lib-f2pywrappers.f.o
+[5/9] Compiling Fortran object interp_lib.cpython-312-x86_64-linux-gnu.so.p/interp_mod.f90.o
+[6/9] Compiling Fortran object interp_lib.cpython-312-x86_64-linux-gnu.so.p/legacy_s2thta.f90.o
+../legacy_s2thta.f90:1:60:
+
+    1 | SUBROUTINE S2THTA_OLD(NI, NJ, KTHTA, SSFC, PSFC, SPRES, THTA, PTHTA,STHTA)
+      |                                                            1
+Warning: Unused dummy argument ‘thta’ at (1) [-Wunused-dummy-argument]
+../legacy_s2thta.f90:119:64:
+
+  119 |                    LOG (PTHTA (I, J, KOUT) /PMID)/LNP1P3 /LNP1P2
+      |                                                                ^
+Warning: ‘lnp1p2’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:12:28:
+
+   12 |   DOUBLE PRECISION :: LNP1P2, LNP2P3, LNP1P3
+      |                            ^
+note: ‘lnp1p2’ was declared here
+../legacy_s2thta.f90:119:64:
+
+  119 |                    LOG (PTHTA (I, J, KOUT) /PMID)/LNP1P3 /LNP1P2
+      |                                                                ^
+Warning: ‘lnp1p3’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:12:44:
+
+   12 |   DOUBLE PRECISION :: LNP1P2, LNP2P3, LNP1P3
+      |                                            ^
+note: ‘lnp1p3’ was declared here
+../legacy_s2thta.f90:117:63:
+
+  117 |                    LOG (PTHTA (I, J, KOUT) /PUP)/LNP2P3 /LNP1P2
+      |                                                               ^
+Warning: ‘lnp2p3’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:12:36:
+
+   12 |   DOUBLE PRECISION :: LNP1P2, LNP2P3, LNP1P3
+      |                                    ^
+note: ‘lnp2p3’ was declared here
+../legacy_s2thta.f90:117:63:
+
+  117 |                    LOG (PTHTA (I, J, KOUT) /PUP)/LNP2P3 /LNP1P2
+      |                                                               ^
+Warning: ‘pdwn’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:14:26:
+
+   14 |   DOUBLE PRECISION :: PDWN, PMID, PUP, SDWN, SMID, SUP, QDWN, QMID, QUP
+      |                          ^
+note: ‘pdwn’ was declared here
+../legacy_s2thta.f90:115:63:
+
+  115 |                    LOG (PTHTA (I, J, KOUT) /PUP)/LNP2P3 /LNP1P3
+      |                                                               ^
+Warning: ‘pmid’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:14:32:
+
+   14 |   DOUBLE PRECISION :: PDWN, PMID, PUP, SDWN, SMID, SUP, QDWN, QMID, QUP
+      |                                ^
+note: ‘pmid’ was declared here
+../legacy_s2thta.f90:115:63:
+
+  115 |                    LOG (PTHTA (I, J, KOUT) /PUP)/LNP2P3 /LNP1P3
+      |                                                               ^
+Warning: ‘pup’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:14:37:
+
+   14 |   DOUBLE PRECISION :: PDWN, PMID, PUP, SDWN, SMID, SUP, QDWN, QMID, QUP
+      |                                     ^
+note: ‘pup’ was declared here
+../legacy_s2thta.f90:120:70:
+
+  120 |               STHTA (I, J, KOUT) = QDWN * SDWN + QMID *SMID + QUP *SUP
+      |                                                                      ^
+Warning: ‘sdwn’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:14:43:
+
+   14 |   DOUBLE PRECISION :: PDWN, PMID, PUP, SDWN, SMID, SUP, QDWN, QMID, QUP
+      |                                           ^
+note: ‘sdwn’ was declared here
+../legacy_s2thta.f90:120:70:
+
+  120 |               STHTA (I, J, KOUT) = QDWN * SDWN + QMID *SMID + QUP *SUP
+      |                                                                      ^
+Warning: ‘smid’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:14:49:
+
+   14 |   DOUBLE PRECISION :: PDWN, PMID, PUP, SDWN, SMID, SUP, QDWN, QMID, QUP
+      |                                                 ^
+note: ‘smid’ was declared here
+../legacy_s2thta.f90:120:70:
+
+  120 |               STHTA (I, J, KOUT) = QDWN * SDWN + QMID *SMID + QUP *SUP
+      |                                                                      ^
+Warning: ‘sup’ may be used uninitialized [-Wmaybe-uninitialized]
+../legacy_s2thta.f90:14:54:
+
+   14 |   DOUBLE PRECISION :: PDWN, PMID, PUP, SDWN, SMID, SUP, QDWN, QMID, QUP
+      |                                                      ^
+note: ‘sup’ was declared here
+[7/9] Compiling Fortran object interp_lib.cpython-312-x86_64-linux-gnu.so.p/interp_lib-f2pywrappers2.f90.o
+[8/9] Compiling C object interp_lib.cpython-312-x86_64-linux-gnu.so.p/d27520210a6238652eea114c0ce9f0391243a804_.._.._f2py_src_fortranobject.c.o
+[9/9] Linking target interp_lib.cpython-312-x86_64-linux-gnu.so
+INFO: autodetecting backend as ninja
+INFO: calculating backend command to run: /home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/.venv/bin/ninja -C /tmp/tmp4ny8_1fk/bbdir
+Cannot use distutils backend with Python>=3.12, using meson backend instead.
+Using meson backend
+Will pass --lower to f2py
+See https://numpy.org/doc/stable/f2py/buildtools/meson.html
+Reading fortran codes...
+	Reading file 'legacy_s2thta.f90' (format:free)
+	Reading file 'interp_mod.f90' (format:free)
+{'before': '', 'this': 'use', 'after': ', intrinsic :: iso_fortran_env, only: dp => real64 '}
+Line #2 in interp_mod.f90:"  use, intrinsic :: iso_fortran_env, only: dp => real64 "
+	analyzeline: Could not crack the use statement.
+Post-processing...
+	Block: interp_lib
+			Block: s2thta_old
+			Block: interp_mod
+				Block: s2thta_f23
+Applying post-processing hooks...
+  character_backward_compatibility_hook
+Post-processing (stage 2)...
+	Block: interp_lib
+		Block: unknown_interface
+			Block: s2thta_old
+			Block: interp_mod
+				Block: s2thta_f23
+Building modules...
+    Building module "interp_lib"...
+    Generating possibly empty wrappers"
+    Maybe empty "interp_lib-f2pywrappers.f"
+        Constructing wrapper function "s2thta_old"...
+getarrdims:warning: assumed shape array, using 0 instead of '*'
+          sthta = s2thta_old(ssfc,psfc,spres,thta,pthta,[ni,nj,kthta])
+		Constructing F90 module support for "interp_mod"...
+            Constructing wrapper function "interp_mod.s2thta_f23"...
+getarrdims:warning: assumed shape array, using 0 instead of '*'
+getarrdims:warning: assumed shape array, using 0 instead of '*'
+              sthta = s2thta_f23(ssfc,psfc,spres,pres,pthta,[ni,nj,kthta])
+    Wrote C/API module "interp_lib" to file "./interp_libmodule.c"
+    Fortran 90 wrappers are saved to "./interp_lib-f2pywrappers2.f90"

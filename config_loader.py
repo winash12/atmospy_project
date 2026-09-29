@@ -3,6 +3,7 @@ import os
 from functools import wraps
 import numpy as np
 
+# High-performance native TOML parsing engine (Python 3.11+ standard library)
 if sys.version_info >= (3, 11):
     import tomllib
 else:
@@ -19,10 +20,13 @@ class ConfigContext:
         config_path = os.path.join(root_dir, file_name)
         
         if not os.path.exists(config_path):
-            raise FileNotFoundError(f"[CONFIG CRITICAL] Missing mandatory TOML layout file at: {config_path}")
+            raise FileNotFoundError(f"[CONFIG CRITICAL] Missing mandatory TOML file at: {config_path}")
             
-        with open(config_path, "rb") as f:
-            self._cfg = tomllib.load(f)
+        # FIXED: Read text using utf-8-sig to clear line 1 column 1 BOM/syntax blocks completely
+        with open(config_path, "r", encoding="utf-8-sig") as f:
+            toml_string = f.read()
+            
+        self._cfg = tomllib.loads(toml_string)
             
         # Keep tables strictly separated to prevent mixing parameters
         self.constants_table = self._cfg.get("constants", {})
@@ -48,8 +52,8 @@ def inject_constants(func):
         # Calculate precision-derived physical parameters natively
         rd = np.float64(kwargs["R"] / kwargs["MD"])
         kwargs.setdefault("KAPPA", np.float64(rd / kwargs["CP"]))
-        kwargs.setdefault("kappa_val", kwargs["KAPPA"]) # Parity token alias
-        kwargs.setdefault("p0_val", kwargs["P0"])      # Parity token alias
+        kwargs.setdefault("kappa_val", kwargs["KAPPA"]) 
+        kwargs.setdefault("p0_val", kwargs["P0"])      
         
         return func(*args, **kwargs)
     return wrapper
@@ -64,9 +68,9 @@ def inject_solver_settings(func):
         kwargs.setdefault("MAXLVL", int(s.get("MAXLVL", 50)))
         kwargs.setdefault("DTHTA", float(s.get("DTHTA", 5.0)))
         kwargs.setdefault("EPSLN", np.float64(s.get("EPSLN", 1.0)))
-        kwargs.setdefault("epsln_val", kwargs["EPSLN"]) # Parity token alias
+        kwargs.setdefault("epsln_val", kwargs["EPSLN"]) 
         kwargs.setdefault("NMAX", int(s.get("NMAX", 5)))
-        kwargs.setdefault("nmax_val", kwargs["NMAX"])    # Parity token alias
+        kwargs.setdefault("nmax_val", kwargs["NMAX"])    
         kwargs.setdefault("MOORE_EPSILON", float(s.get("MOORE_EPSILON", 0.005)))
         kwargs.setdefault("STRATEGY_MODULE", str(s.get("STRATEGY_MODULE", "physics_strategies")))
         kwargs.setdefault("STRATEGY_CLASS", str(s.get("STRATEGY_CLASS", "LegacySAStrategy")))
@@ -84,7 +88,7 @@ def inject_library_settings(func):
     def wrapper(*args, **kwargs):
         l = env_config.library_table
         kwargs.setdefault("P2THTA_MODULE", str(l.get("P2THTA_MODULE", "coordinate_transformers")))
-        kwargs.setdefault("P2THTA_CLASS", str(l.get("P2THTA_CLASS", "IsentropicXtensorBackend")))
+        kwargs.setdefault("P2THTA_CLASS", str(l.get("P2THTA_CLASS", "IsentropicNumPyBackend")))
         kwargs.setdefault("S2THTA_MODULE", str(l.get("S2THTA_MODULE", "coordinate_transformers")))
         kwargs.setdefault("S2THTA_CLASS", str(l.get("S2THTA_CLASS", "IsobaricVelocityNumPyBackend")))
         

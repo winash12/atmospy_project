@@ -20,6 +20,6 @@ SUBTERRANEAN_PHYSICS = "MissingValueStrategy"
 # Platform Processing Extension Backends
 [library_settings]
 P2THTA_MODULE = "coordinate_transformers"
-P2THTA_CLASS  = "IsentropicNumpyBackend"
+P2THTA_CLASS  = "IsentropicXtensorBackend"
 S2THTA_MODULE = "coordinate_transformers"
 S2THTA_CLASS  = "IsobaricVelocityXtensorBackend"

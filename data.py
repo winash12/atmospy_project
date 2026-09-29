@@ -152,9 +152,9 @@ def main():
 
     executeDownload(atmosVariables,pressureLevels)
 
+
     executeSurfacePressureDownload()
 
     executeSurfaceFluxDownload(surfaceFluxVariables)
 
 main() # Call the main function
-

@@ -14,3 +14,14 @@ solver_settings:
   MOORE_EPSILON: 0.005
   STRATEGY_MODULE: "physics_strategies"
   STRATEGY_CLASS: "LegacySAStrategy"
+  SUBTERRANEAN_PHYSICS: "MISSING_VALUE"     
+library_settings:     
+  # Coordinate Pressure Tracker (p2thta) Backend Configuration
+  # Options: "IsentropicNumPyBackend" or "IsentropicXtensorBackend"
+  P2THTA_MODULE: "coordinate_transformers"
+  P2THTA_CLASS: "IsentropicXtensorBackend"
+
+  # Horizontal Wind Velocity Interpolator (s2thta) Backend Configuration
+  # Options: "IsobaricVelocityNumPyBackend" or "IsobaricVelocityXtensorBackend"
+  S2THTA_MODULE: "library_strategies"
+  S2THTA_CLASS: "IsobaricVelocityNumPyBackend"

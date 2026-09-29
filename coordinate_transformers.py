@@ -9,7 +9,6 @@ import numpy as np
 from abc import ABC, abstractmethod
 import interp_lib
 import weather_lib
-from thermostatics import LegacySAStrategy, Moore1993Strategy
 from thermostatics import pot
 
 @dataclass
@@ -657,7 +656,7 @@ class IsentropicXtensorBackend(GenericDomainStrategy):
         # Pass the safe arrays back to your validation framework slots
         return pthta_cpp, t_theta, t_theta, dltdlp_cpp, np.zeros_like(pthta_cpp)
 
-class IsobaricVelocityNumPyBackend(GenericDomainStrategy):
+class IsobaricVelocityNumpyBackend(GenericDomainStrategy):
     """
     Pure NumPy Vectorized Velocity Transformation Backend.
     Driven natively via a singular, single-parameter IsentropicVelocityState container.

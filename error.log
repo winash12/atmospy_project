@@ -1,0 +1,54 @@
+/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/XDailyMeanPV.py:108: SyntaxWarning: invalid escape sequence '\.'
+  dates=np.array(list(map(lambda v:re.sub('\.[0]+',' ',v),dates)))
+/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/XDailyMeanPV.py:115: SyntaxWarning: invalid escape sequence '\.'
+  dateMean = re.sub('\.[0]+',' ',dateMean)
+/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/PV.py:1115: RuntimeWarning: invalid value encountered in divide
+  l13[active] = np.where(c1_3d, np.log(pup/pdwn), lnpu2p[k])[active]
+/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/PV.py:1116: RuntimeWarning: invalid value encountered in divide
+  l23[active] = np.where(c1_3d, np.log(pmid/pdwn), lnpu1p[k])[active]
+/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/PV.py:1137: RuntimeWarning: invalid value encountered in divide
+  l13[m_psfc] = np.where(c3_3d, np.log(pup/pdwn), lnpu2p[k])[m_psfc]
+/home/aswin/Data/PVProject/opendap/7thApril/26thSeptember/PV.py:1138: RuntimeWarning: invalid value encountered in divide
+  l23[m_psfc] = np.where(c3_3d, np.log(pmid/pdwn), lnpu1p[k])[m_psfc]
+<xarray.Dataset> Size: 9MB
+Dimensions:  (time: 4, level: 17, lat: 73, lon: 144)
+Coordinates:
+  * time     (time) datetime64[ns] 32B 2026-01-24 ... 2026-01-24T18:00:00
+  * level    (level) float32 68B 1e+03 925.0 850.0 700.0 ... 50.0 30.0 20.0 10.0
+  * lat      (lat) float32 292B 90.0 87.5 85.0 82.5 ... -82.5 -85.0 -87.5 -90.0
+  * lon      (lon) float32 576B 0.0 2.5 5.0 7.5 10.0 ... 350.0 352.5 355.0 357.5
+Data variables:
+    air      (time, level, lat, lon) float32 3MB dask.array<chunksize=(1, 1, 73, 144), meta=np.ndarray>
+    uwnd     (time, level, lat, lon) float32 3MB dask.array<chunksize=(1, 1, 73, 144), meta=np.ndarray>
+    vwnd     (time, level, lat, lon) float32 3MB dask.array<chunksize=(1, 1, 73, 144), meta=np.ndarray>
+    air_2    (time, lat, lon) float32 168kB dask.array<chunksize=(1, 73, 144), meta=np.ndarray>
+    pres     (time, lat, lon) float32 168kB dask.array<chunksize=(1, 73, 144), meta=np.ndarray>
+    uwnd_2   (time, lat, lon) float32 168kB dask.array<chunksize=(1, 73, 144), meta=np.ndarray>
+    vwnd_2   (time, lat, lon) float32 168kB dask.array<chunksize=(1, 73, 144), meta=np.ndarray>
+Attributes:
+    CDI:            Climate Data Interface version 2.4.0 (https://mpimet.mpg....
+    Conventions:    COARDS
+    title:          4x daily NMC reanalysis (2014)
+    history:        Sat Jan 31 19:13:41 2026: cdo -O -s -merge tmpFile.nc uwn...
+    description:    Data is from NMC initialized reanalysis\n(4x/day).  It co...
+    platform:       Model
+    dataset_title:  NCEP-NCAR Reanalysis 1
+    References:     http://www.psl.noaa.gov/data/gridded/data.ncep.reanalysis...
+    CDO:            Climate Data Operators version 2.4.0 (https://mpimet.mpg....
+dask.array<open_dataset-uwnd, shape=(4, 17, 73, 144), dtype=float32, chunksize=(1, 1, 73, 144), chunktype=numpy.ndarray>
+[100000.  92500.  85000.  70000.  60000.  50000.  40000.  30000.  25000.
+  20000.  15000.  10000.   7000.   5000.   3000.   2000.   1000.]
+['2026-01-24 00:00:00 ' '2026-01-24 06:00:00 ' '2026-01-24 12:00:00 '
+ '2026-01-24 18:00:00 ']
+first entropic level is  250.0
+TOP ISENTROPIC LEVEL 410.0
+[250. 260. 270. 280. 290. 300. 310. 320. 330. 340. 350. 360. 370. 380.
+ 390. 400. 410.]
+(16, 73, 144)
+16
+(16, 73, 144)
+the shape of spres
+(144, 73, 17)
+(144, 73, 16)
+16
+Mean Absolute Error: 6.292013784909489e-16 m/s
