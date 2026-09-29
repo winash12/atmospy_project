@@ -23,12 +23,12 @@ jobs:
     - name: Install System Packaging Tools and OpenMP Core Compiler Runtime
       run: |
         sudo apt-get update
-        sudo apt-get install -y libomp-dev ninja-build gfortran libspatialindex-dev libgeos-dev
+        sudo apt-get install -y libomp-dev ninja-build gfortran libspatialindex-dev libgeos-dev xtensor-dev
 
     - name: Install High-Performance Scientific Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install numpy xarray scipy matplotlib cartopy dask distributed meson ninja pybind11 xtensor pytest
+        pip install numpy xarray scipy matplotlib cartopy dask distributed meson ninja pybind11 pytest
 
     - name: Configure and Compile Fused Multi-Threaded C++ Binary Extensions Via Meson
       run: |
@@ -39,4 +39,3 @@ jobs:
     - name: Run Modular Tests Verification Suites Framework
       run: |
         pytest tests/ --ignore=.venv/
-
