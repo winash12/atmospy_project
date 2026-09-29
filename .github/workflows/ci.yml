@@ -48,7 +48,8 @@ jobs:
       run: |
         meson setup build
         meson compile -C build
-        meson install -C build
+        cp build/vayu_core.*.so vayu/
+
 
     - name: Run Modular Tests Verification Suites Framework
       run: |
