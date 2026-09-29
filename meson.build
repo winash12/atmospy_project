@@ -1,8 +1,8 @@
 project('pramanavayu', 'cpp',
     version: '1.0.0',
     default_options: [
-        'cpp_std=c++20',      # Enforces C++20 standard compliance rules
-        'optimization=3',     # Leverages full O3 compiler loop optimizations
+        'cpp_std=c++20',      
+        'optimization=3',     
         'warning_level=2'
     ]
 )
@@ -18,11 +18,11 @@ numpy_inc_path = run_command(py, [
 ], check: true).stdout().strip()
 
 # --- 3. Synchronized Header and Source JOSS Paths ---
-# Tells the compiler where to locate local source code and the manual header installations
+# FIXED: We add 'cpp' directly so the compiler can seamlessly map "include/vayu_core_ops.hpp"
 inc_vayu = include_directories('cpp/include')
-inc_local = include_directories('/usr/local/include') # Direct pointer to your manual git checkouts
+inc_joss_root = include_directories('cpp') 
+inc_local = include_directories('/usr/local/include') 
 
-# FIXED: Aligned source paths straight into your clean JOSS cpp/src/ directory layout!
 sources = [
     'cpp/src/isobaric_to_isentropic_pressure.cpp', 
     'cpp/src/isobaric_to_isentropic_velocity.cpp', 
@@ -30,7 +30,6 @@ sources = [
 ]
 
 # --- 4. Resolve System Packaging Dependencies ---
-# FIXED: Dropped 'xtensor' and 'xtensor-python' dependencies to prevent pkg-config lookup crashes
 deps = [
     py_dep,
     dependency('pybind11'),
@@ -42,7 +41,7 @@ py.extension_module(
     'vayu_core',
     sources: sources,
     dependencies: deps,
-    include_directories: [inc_vayu, inc_local], # Tied manual headers safely into compile mapping
+    include_directories: [inc_vayu, inc_joss_root, inc_local], # FIXED: Included the new directory mapping here
     cpp_args: [
         '-march=native',
         '-mavx2',
@@ -55,3 +54,6 @@ py.extension_module(
     gnu_symbol_visibility: 'default',
     install: true
 )
+
+
+
