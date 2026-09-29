@@ -27,16 +27,13 @@ jobs:
 
     - name: Install Statically Chained Header-Only xtensor Ecosystem (xtl, xtensor, xtensor-python)
       run: |
-        # 1. Install xtl (Core foundation block)        
-        git clone --depth 1 https://github.com/xtensor-stack/xtl.git
+        git clone --depth 1 https://github.com
         sudo cp -r xtl/include/xtl /usr/local/include/
 
-        # 2. Install base xtensor core engine
-        git clone --depth 1 https://github.com/xtensor-stack/xtensor.git
+        git clone --depth 1 https://github.com
         sudo cp -r xtensor/include/xtensor /usr/local/include/
         
-        # 3. Install xtensor-python binding layers
-        git clone --depth 1 https://github.com/xtensor-stack/xtensor-python.git
+        git clone --depth 1 https://github.com
         sudo cp -r xtensor-python/include/xtensor-python /usr/local/include/
 
     - name: Install High-Performance Scientific Dependencies
@@ -50,7 +47,6 @@ jobs:
         meson compile -C build
         cp build/vayu_core.*.so vayu/
 
-
-     - name: Run Modular Tests Verification Suites Framework
+    - name: Run Modular Tests Verification Suites Framework
       run: |
         pytest tests/ --ignore=.venv/ || [ $? -eq 5 ]
