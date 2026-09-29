@@ -25,15 +25,19 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libomp-dev ninja-build gfortran libspatialindex-dev libgeos-dev
 
-    - name: Install Statically Chained Header-Only xtensor Ecosystem (xtl, xtensor, xtensor-python)
+    - name: Install xtensor-python (Header-only)
       run: |
-        git clone --depth 1 https://github.com
+        # xtensor-python is usually not in apt; we fetch the headers manually
+        # 1. Install xtl (Core dependency)        
+        git clone --depth 1 https://github.com/xtensor-stack/xtl.git
         sudo cp -r xtl/include/xtl /usr/local/include/
 
-        git clone --depth 1 https://github.com
+        # 2. Install base xtensor
+        git clone --depth 1 https://github.com/xtensor-stack/xtensor.git
         sudo cp -r xtensor/include/xtensor /usr/local/include/
         
-        git clone --depth 1 https://github.com
+        # 3. Install xtensor-python
+        git clone --depth 1 https://github.com/xtensor-stack/xtensor-python.git
         sudo cp -r xtensor-python/include/xtensor-python /usr/local/include/
 
     - name: Install High-Performance Scientific Dependencies
