@@ -53,4 +53,4 @@ jobs:
 
     - name: Run Modular Tests Verification Suites Framework
       run: |
-        pytest tests/ --ignore=.venv/ || [ $? -eq 5 ]
+        python -m pytest tests/ --import-mode=importlib
