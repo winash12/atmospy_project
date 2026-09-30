@@ -1,7 +1,0 @@
-python3 -m venv .venv
-source .venv/bin/activate.csh
-pip install setuptools wheel numpy
-pip install -r requirements.txt
-
-
-setenv CARTOPY_DATA_DIR /home/aswin/.local/share/cartopy
